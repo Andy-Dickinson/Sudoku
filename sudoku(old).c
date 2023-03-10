@@ -32,20 +32,15 @@ void display_board(int grid[][SIZE]) {
     int row;
     int col;
 
-    // top left corner of board
-    // SIZE determines spacing
-    if(SIZE>9) {
-        printf("    ");
-    }else {
-        printf("   ");
-    }
+    // indents top left corner of board (header row)
+    printf("    ");
 
     // prints column headers
     for(int c=1; c<=SIZE; c++) {
-        printf("%d ", c);
-        if(SIZE>9 && c<9){
-            printf(" ");
-        }
+        // converts int to char
+        printf("%c ", c+64);
+
+        // increases spacing for new box headers
         if((c)%BOX_COLS == 0) {
             printf("  ");
         }
@@ -62,22 +57,23 @@ void display_board(int grid[][SIZE]) {
 
             // row ID
             if(col==0){
-                // determines spacing
-                if(SIZE>9 && row<9){
+                if(row<9) {
                     printf(" %d| ", row+1);
-                } else {
+                }else {
+                    // double digit row ID
                     printf("%d| ", row+1);
                 }
             }
 
             // print board values
-            // SIZE check determines spacing
-            if(SIZE>9) {
-                printf("%d  ", grid[row][col]);
-            }else {
-                printf("%d ", grid[row][col]);
+            int value = grid[row][col];
+            if(value == 0){
+                printf("_ ");
+            }else{
+                printf("%d ", value);
             }
 
+            // box separator
             if((col+1)%BOX_COLS == 0) {
                 printf("| ");
             }
@@ -85,7 +81,7 @@ void display_board(int grid[][SIZE]) {
 
         printf("\n");
 
-        // inserts sepearator row between boxes
+        // inserts separator row between boxes
         if((row+1)%BOX_ROWS == 0) {
             sepearator_row();
         }
@@ -113,8 +109,12 @@ int get_box_num(int grid[][SIZE], int row, int col) {
 
 // prints a separator row
 void sepearator_row() {
-    for(int i=0; i<SIZE*1.4; i++) {
-        printf("--");
+    printf("---");
+    // for varying grid size, amount of dashes required is double the number of columns per box + 2
+    // then multiplied by number of boxes horizontally which coincides with the number of rows per box
+    // plus 3 to cover row id column
+    for(int i=0; i<(BOX_COLS*2+2)*BOX_ROWS; i++) {
+        printf("-");
     }
     printf("\n");
 }
