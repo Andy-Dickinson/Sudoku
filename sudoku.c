@@ -252,11 +252,11 @@ int get_box_num(int** grid, int row, int col) {
 
 // prints a separator row
 void sepearator_row() {
+    // 3 dashes to cover row id column
     printf("---");
     // for grid sizes under 10, amount of dashes required is double the number of columns per box + 2
     // for grid sizes over 10, amount of dashes required is triple the number of columns per box + 2
     // for all cases, then multiply by number of boxes horizontally which coincides with the number of rows per box
-    // plus 3 to cover row id column
     if(SIZE<10) {
         for(int i=0; i<(BOX_COLS*2+2)*BOX_ROWS; i++) {
             printf("-");
