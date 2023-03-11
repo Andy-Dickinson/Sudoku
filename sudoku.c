@@ -2,7 +2,7 @@
 #include <math.h>
 #include <time.h>
 
-#define SIZE 12
+#define SIZE 9
 
 // used for circular doubly linked list of all possible numbers to be entered in a box when partially completing grid
 typedef struct node {
@@ -170,6 +170,11 @@ void display_board(int** grid) {
 
     // prints column headers
     for(int c=1; c<=SIZE; c++) {
+        // formats for double digits in grid
+        if(SIZE>9) {
+            printf(" ");
+        }
+
         // converts int to char
         printf("%c ", c+64);
 
@@ -200,6 +205,10 @@ void display_board(int** grid) {
 
             // print board values
             int value = grid[row][col];
+            if(SIZE>9 && value<10) {
+                // formats for double digit values in grid
+                printf(" ");
+            }
             if(value == 0){
                 // increases readability rather than using 0's
                 printf("_ ");
@@ -244,11 +253,18 @@ int get_box_num(int** grid, int row, int col) {
 // prints a separator row
 void sepearator_row() {
     printf("---");
-    // for varying grid size, amount of dashes required is double the number of columns per box + 2
-    // then multiplied by number of boxes horizontally which coincides with the number of rows per box
+    // for grid sizes under 10, amount of dashes required is double the number of columns per box + 2
+    // for grid sizes over 10, amount of dashes required is triple the number of columns per box + 2
+    // for all cases, then multiply by number of boxes horizontally which coincides with the number of rows per box
     // plus 3 to cover row id column
-    for(int i=0; i<(BOX_COLS*2+2)*BOX_ROWS; i++) {
-        printf("-");
+    if(SIZE<10) {
+        for(int i=0; i<(BOX_COLS*2+2)*BOX_ROWS; i++) {
+            printf("-");
+        }
+    }else {
+        for(int i=0; i<(BOX_COLS*3+2)*BOX_ROWS; i++) {
+            printf("-");
+        }
     }
     printf("\n");
 }
