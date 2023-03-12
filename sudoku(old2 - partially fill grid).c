@@ -4,21 +4,12 @@
 
 #define SIZE 9
 
-// circular doubly linked list of all possible numbers to be entered in a box/row/column
-typedef struct node {
+// used for circular doubly linked list of all possible numbers to be entered in a box when partially completing grid
+typedef struct box_node {
     int data;
-    struct node* next;
-    struct node* prev;
-} node;
-
-// maintains list and attributes for each box/row/column - NOT circular
-typedef struct candidates {
-    struct node* cand_list; // points to list of nodes containing all candidate numbers
-    int id;
-    int remaining; // number candidates left in list
-    struct candidates* next;
-    struct candidates* prev;
-} candidates;
+    struct box_node* next;
+    struct box_node* prev;
+} box_node;
 
 // stored as global variables to avoid recalculating - will be constant for each game board size
 int BOX_ROWS = floor(sqrt(SIZE)); // rows per box - 9x9 board will be 3, 6x6 will be 2
@@ -27,10 +18,9 @@ int BOX_COLS = ceil(sqrt(SIZE)); // cols per box - 9x9 board will be 3, 6x6 will
 void display_board(int** grid); // iterates through grid to print game board
 void init(int** grid); // initialise grid
 void sepearator_row(); // prints a row of ---
-void partially_complete(int** grid, candidates** row_cand, candidates** col_cand, candidates** box_cand); // randomly fills boxes which do not conflict with each other
-node* create_box_num_list(); // creates doubly linked circular list of all numbers for a box/row/column
+void partially_complete(int** grid); // randomly fills boxes which do not conflict with each other
+box_node* create_box_num_list(); // creates doubly linked circular list of all numbers for a box
 void clean_up(int** grid);
-candidates* generate_candidates(); // creates structure to contain all candidates for either rows/columns/boxes
 
 
 //////////////////////// currently not used
@@ -47,8 +37,7 @@ int main() {
     int** grid;
 
     // allocate memory for grid
-    // memory allocation code and 2d array setup adapted from
-    // (No name or date, Multidimensional arrays in C, https://www.uio.no/studier/emner/matnat/ifi/IN3200/v19/teaching-material/multidimarrays.pdf)
+    // memory allocation code adapted from (No name or date, Multidimensional arrays in C, https://www.uio.no/studier/emner/matnat/ifi/IN3200/v19/teaching-material/multidimarrays.pdf)
     grid = malloc(SIZE * sizeof *grid);
     grid[0] = malloc(SIZE*SIZE * sizeof *grid[0]);
 
@@ -59,14 +48,8 @@ int main() {
     // initialise grid
     init(grid);
 
-    // generate candidates
-    // each points to the first candidates list in row/col/box
-    candidates* row_cand = generate_candidates();
-    candidates* col_cand = generate_candidates();
-    candidates* box_cand = generate_candidates();
-
     // randomly fills boxes which do not conflict with each other
-    partially_complete(grid, row_cand, col_cand, box_cand);
+    partially_complete(grid);
 
     // print board
     display_board(grid);
@@ -76,52 +59,21 @@ int main() {
     return 0;
 }
 
-// creates structure to contain all candidates for either rows/columns/boxes
-candidates* generate_candidates() {
-    candidates* cand, * temp, * current;
-    cand = (candidates*) malloc(sizeof(candidates));
-
-    // sets attributes for first row/column/box
-    cand -> cand_list = create_box_num_list();
-    cand -> id = 0;
-    cand -> next = NULL;
-    cand -> prev = NULL;
-    cand -> remaining = SIZE;
-
-    temp = cand;
-
-    // adds candidates for remaining rows/columns/boxes
-    for(int i=1; i<SIZE; i++) {
-        current = (candidates*) malloc(sizeof(candidates));
-
-        current -> cand_list = create_box_num_list();
-        current -> id = i;
-        current -> next = NULL;
-        current -> prev = temp;
-        current -> remaining = SIZE;
-
-        temp -> next = current;
-        temp = current;
-    }
-
-    return cand;
-}
-
 // deallocates memory
 void clean_up(int** grid){
     free(grid[0]);
     free(grid);
 }
 
-// creates doubly linked circular list of all numbers for a box/row/column
-node* create_box_num_list() {
+// creates doubly linked circular list of all numbers for a box
+box_node* create_box_num_list() {
     // creates new list
-    node* list, * last, *  current;
+    box_node* list, * last, *  current;
     list = NULL;
 
     if(SIZE>0) {
         // allocates memory for first node
-        list = (node*) malloc(sizeof(node));
+        list = (box_node*) malloc(sizeof(box_node));
 
         // creates first node
         list -> prev = list;
@@ -129,13 +81,13 @@ node* create_box_num_list() {
         list -> next = list;
 
         // tracks last node created
-        last = (node*) malloc(sizeof(node));
+        last = (box_node*) malloc(sizeof(box_node));
         last = list;
 
         // creates new node for each number in a box and appends to list
         for(int i=2; i<=SIZE; i++) {
             // allocates memory for each new node
-            current = (node*) malloc(sizeof(node));
+            current = (box_node*) malloc(sizeof(box_node));
 
             // inserts data to new node and sets prev to point at last and sets next to point back at first node
             current -> prev = last;
@@ -148,78 +100,63 @@ node* create_box_num_list() {
             // updates last node tracker
             last = current;
         }
-
-        // sets first node to point back at last
-        list -> prev = current;
     }
 
     return list;
 }
 
 // randomly fills boxes which do not conflict with each other
-// note rows are iterated in tern, but the for loop iterates for number of box rows
-// columns are calculated by box cols * box index
-void partially_complete(int** grid, candidates** row_cand, candidates** col_cand, candidates** box_cand) {
+void partially_complete(int** grid) {
     int row = 0;
     int col = 0;
-    candidates* current_box_cand = box_cand;
-
+    box_node* box_numbers, * temp;
 
     // randomly fills non conflicting boxes
     // iterates boxes diagonally down and to the right
     for(int box=0; box<SIZE/BOX_COLS; box++) {
 
-        // sets pointer to current box candidates
-        while(current_box_cand -> id != box){
-            current_box_cand = current_box_cand -> next;
-        }
+        // generates doubly linked circular list of all numbers for a box
+        // memory is allocated in method called
+        box_numbers = create_box_num_list();
+
+        int box_num_remaining = SIZE;
 
         // iterates rows in a box
         for(int i=0; i<BOX_ROWS; i++) {
             // sets column index to beginning of next box to the right
             col = BOX_COLS*box;
             // iterates columns in a box
-
             for(int j=0; j<BOX_COLS; j++) {
                 // generate random number between 0 and number of box_num_remaining-1
-                int cycle_num = rand() % (current_box_cand -> remaining);
+                int num_pointer = rand() % (box_num_remaining);
 
-                // loops pointer to list of remaining numbers to be placed, essentially selecting a random number from those remaining for box
-                // doesn't loop if only 1 remaining
-                for(int i=0; i<cycle_num; i++){
-                    current_box_cand -> cand_list = current_box_cand -> cand_list -> next;
+                // loops pointer to list of remaining numbers to be placed, essentially selecting a random number from those remaining
+                for(int i=0; i<num_pointer; i++){
+                    box_numbers = box_numbers -> next;
                 }
 
                 // inserts random number from box_numbers list into grid
-                int insert_num = current_box_cand -> cand_list -> data;
-                grid[row][col] = insert_num;
+                grid[row][col] = box_numbers -> data;
 
-                // only updates list pointers if more than one
-                // as if only 1 element remaining, it will be pointing at itself
-                if(current_box_cand -> remaining > 1) {
-                    current_box_cand -> cand_list -> prev -> next = current_box_cand -> cand_list -> next;
-                    current_box_cand -> cand_list -> next -> prev = current_box_cand -> cand_list -> prev;
+                // update pointers in box_numbers
+                if(box_num_remaining>1) {
+                    temp = (box_node*) malloc(sizeof(box_node));
 
-                    current_box_cand -> cand_list = current_box_cand -> cand_list -> next;
+                    temp = box_numbers;
+                    temp -> prev -> next = temp -> next;
+                    temp -> next -> prev = temp -> prev;
+                    box_numbers = temp -> next;
                 }
 
-                // sets candidates list to NULL if last remaining number used
-                if(current_box_cand -> remaining == 1) {
-                    current_box_cand -> cand_list = NULL;
-                }
-
-                // updates number of candidates remaining
-                current_box_cand -> remaining--;
-
-
-                ///////////////////UPDATE ROW AND COLUMN CANDIDATES////////////////////////////////////////////////////////////////
-
-
+                box_num_remaining--;
                 col++;
             }
             row++;
         }
+        free(temp);
+        free(box_numbers);
     }
+
 }
 
 // iterates through grid to print game board
