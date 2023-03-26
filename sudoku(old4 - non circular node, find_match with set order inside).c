@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
 #include <time.h>
 #include <stdbool.h>
@@ -29,14 +28,13 @@ int BOX_COLS = ceil(sqrt(SIZE)); // cols per box - 9x9 board will be 3, 6x6 will
 void display_board(int** grid); // iterates through grid to print game board
 void init(int** grid); // initialise grid
 void sepearator_row(); // prints a row of --- dependant on board SIZE
-void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // randomly fills boxes which do not conflict with each other
+void partially_complete(int** grid, candidates** row_cand, candidates** col_cand, candidates** box_cand); // randomly fills boxes which do not conflict with each other
 node* create_box_num_list(); // creates doubly linked list of all numbers for a box/row/column
 void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // deallocates memory
 candidates* generate_candidates(); // creates structure (doubly linked list) to contain all candidates for either rows/columns/boxes
 int check_match(node* row_list, node* col_list, node* box_list); // returns true if first number in each list match, false otherwise
-void set_order_to_compare(candidates** least_cand, candidates** mid_cand, candidates** lon_cand, candidates* row, candidates* col, candidates* box); // sets node pointers for when looking for a match to reduce comparisons
-int find_match(node** least_list, candidates* mid_cand, candidates* most_cand, int* least_rem); // returns a matching candidate that exists in all lists (row/col/box)
-void remove_candidate(candidates** can, int del_num, int id_num); // removes number from candidates list
+void set_order_to_compare(node** least, node** mid, node** most, int* rem_least, int* rem_mid, int* rem_most, candidates* row, candidates* col, candidates* box); // sets node pointers for when looking for a match to reduce comparisons
+int find_match(candidates* row_cand, candidates* col_cand, candidates* box_cand); // returns a matching candidate that exists in all lists (row/col/box)
 
 //////////////////////currently not being used
 int get_box_num(int row, int col); // calculate box number (0 indexed)
@@ -86,6 +84,7 @@ int main() {
     // print board
     display_board(grid);
 
+
 candidates* temp_row = row_cand;
 candidates* temp_col = col_cand;
 candidates* temp_box = box_cand;
@@ -95,47 +94,27 @@ temp_col= temp_col->next->next->next;
 temp_box=temp_box->next;
 
 // 6 in row
-//remove_candidate(&temp_row, 2, 0); // 5 now remaining
-//remove_candidate(&temp_row, 3, 0); // 4 now remaining
+//remove_candidate(temp_row, 2, 0); // 5 now remaining
+//remove_candidate(temp_row, 3, 0); // 4 now remaining
 
 // 6 in col
-remove_candidate(&temp_col, 2, 3); // 5 now remaining
-//remove_candidate(&temp_col, 5, 3); // 4 now remaining
+remove_candidate(temp_col, 2, 3); // 5 now remaining
+//remove_candidate(temp_col, 5, 3); // 4 now remaining
 
 // 9 in box
-remove_candidate(&temp_box, 1, 1); // 8 now remaining
-remove_candidate(&temp_box, 3, 1); // 7 now remaining
-remove_candidate(&temp_box, 4, 1); // 6 now remaining
-remove_candidate(&temp_box, 5, 1); // 5 now remaining
-remove_candidate(&temp_box, 6, 1); // 4 now remaining
+remove_candidate(temp_box, 1, 1); // 8 now remaining
+remove_candidate(temp_box, 3, 1); // 7 now remaining
+remove_candidate(temp_box, 4, 1); // 6 now remaining
+remove_candidate(temp_box, 5, 1); // 5 now remaining
+remove_candidate(temp_box, 6, 1); // 4 now remaining
 
 printf("remaining, row = %d, col = %d, box = %d\n", temp_row->remaining, temp_col->remaining, temp_box->remaining);
 printf("box remains = 2, 7, 8, 9\n");
 printf("col remains = 1, 5, 6, 7, 8\n");
 printf("row remains = 1, 2, 3, 5, 7, 8\n");
+find_match(temp_row, temp_col, temp_box);
 
 
-
-// ordered candidates, allows access to remaining for each list
-candidates* least, * mid, * most;
-// smallest list, allows to be progressed without affecting originals to find ALL matches
-node* least_list;
-
-// sets order
-set_order_to_compare(&least, &mid, &most, temp_row, temp_col, temp_box);
-
-// sets list to be able to move forward for all matches
-least_list = least->cand_list;
-int least_counter = least->remaining;
-int match;
-
-
- while(least_counter>0) {
-     match = find_match(&least_list, mid, most, &least_counter);
-     if(match != -1) {
-             printf("match = %d\n", match);
-     }
- }
 
     clean_up(grid, row_cand, col_cand, box_cand);
 
@@ -143,49 +122,48 @@ int match;
 }
 
 
-/* returns a matching candidate that exists in all lists (row/col/box)
-   expects candidates to be passed in order of least remaining candidates (to reduce comparisons)
-   least_list (with fewest remaining) is passed in as a list (pointer to a list pointer) rather than a candidate,
-   so pointer can be advanced when finding ALL matches without affecting original candidate pointer
-   remaining are passed in as candidates */
-int find_match(node** least_list, candidates* mid_cand, candidates* most_cand, int* least_rem) {
-    node* temp_mid, * temp_most;
+// returns a matching candidate that exists in all lists (row/col/box)
+int find_match(candidates* row_cand, candidates* col_cand, candidates* box_cand) {
+    int rem_in_least;
+    int rem_in_mid;
+    int rem_in_most;
+    node* least, * mid, * most, * temp_mid, * temp_most;
     int num;
 
     // if none remain in any list, then cannot be a match
-    if(*least_rem == 0 || mid_cand->remaining == 0 || most_cand->remaining == 0) {
-        *least_list = NULL;
-        *least_rem = 0;
-        return -1;
+    if(row_cand->remaining == 0 || col_cand->remaining == 0 || box_cand == 0) {
+        return NULL;
     }
 
-    // iterates smallest list (this will never need resetting)
-    for(int i=0; i < *least_rem; i++) {
-        // gets first number from smallest list
-        num = (*least_list)->data;
+    // sets node pointers and remaining variables so iterating for match will take minimal comparisons
+    set_order_to_compare(&least, &mid, &most, &rem_in_least, &rem_in_mid, &rem_in_most, row_cand, col_cand, box_cand);
 
-        // updates remaining to check for smallest list
-        *least_rem = *least_rem-1;
+printf("least = %d\n", least->data);
+
+    // iterates smallest list (this will never need resetting)
+    for(int i=0; i<rem_in_least; i++) {
+        // gets first number from smallest list
+        num = least->data;
 
         // resets temp nodes which have pointers moved forward in loop
-        temp_mid = mid_cand->cand_list;
-        temp_most = most_cand->cand_list;
+        temp_mid = mid;
+        temp_most = most;
 
         // iterates medium length list
-        for(int j=0; j < mid_cand->remaining; j++) {
+        for(int j=0; j<rem_in_mid; j++) {
 
             // if number matches mid length list, check longest list
             if(num == temp_mid->data) {
 
-                for(int k=0; k < most_cand->remaining; k++){
+                for(int k=0; k<rem_in_most; k++){
                     // if match found, return
                     if(num == temp_most->data) {
-                        *least_list = (*least_list)->next;
+                        printf("match = %d\n", num);
                         return num;
                     }
 
                     // if number in most is greater than num, no point checking further in list
-                    if(temp_most->data > num){
+                    if(temp_most->data>num){
                         break;
                     }
 
@@ -195,24 +173,23 @@ int find_match(node** least_list, candidates* mid_cand, candidates* most_cand, i
             }
 
             // if number in mid is greater than num, no point checking further in list
-            if(temp_mid->data > num) {
+            if(temp_mid->data>num) {
                 break;
             }
 
             // check next
             temp_mid = temp_mid->next;
         }
-        *least_list = (*least_list)->next;
+        least = least->next;
     }
 
     // no match found
-    return -1;
+    return NULL;
 }
 
-
-// sets candidate pointers for when looking for a match
+// sets node pointers for when looking for a match
 // allows iterating over the list with the least number of remaining candidates first to reduce comparisons
-void set_order_to_compare(candidates** least_cand, candidates** mid_cand, candidates** lon_cand, candidates* row, candidates* col, candidates* box) {
+void set_order_to_compare(node** least_list, node** mid_list, node** lon_list, int* rem_least, int* rem_mid, int* rem_most, candidates* row, candidates* col, candidates* box) {
     int rem_in_row = row->remaining;
     int rem_in_col = col->remaining;
     int rem_in_box = box->remaining;
@@ -221,47 +198,64 @@ void set_order_to_compare(candidates** least_cand, candidates** mid_cand, candid
 
         // row, col, box order
         if(rem_in_col<rem_in_box) {
-            *least_cand = row;
-            *mid_cand = col;
-            *lon_cand = box;
+            *least_list = row->cand_list;
+            *mid_list = col->cand_list;
+            *lon_list = box->cand_list;
+            *rem_least = rem_in_row;
+            *rem_mid = rem_in_col;
+            *rem_most = rem_in_box;
 
         // row, box, col order
         } else if (rem_in_row<rem_in_box) {
-            *least_cand = row;
-            *mid_cand = box;
-            *lon_cand = col;
+            *least_list = row->cand_list;
+            *mid_list = box->cand_list;
+            *lon_list = col->cand_list;
+            *rem_least = rem_in_row;
+            *rem_mid = rem_in_box;
+            *rem_most = rem_in_col;
 
         // box, row, col order
         } else {
-            *least_cand = box;
-            *mid_cand = row;
-            *lon_cand = col;
+            *least_list = box->cand_list;
+            *mid_list = row->cand_list;
+            *lon_list = col->cand_list;
+            *rem_least = rem_in_box;
+            *rem_mid = rem_in_row;
+            *rem_most = rem_in_col;
         }
     } else {
 
         // col, row, box order
         if(rem_in_row<rem_in_box) {
-            *least_cand = col;
-            *mid_cand = row;
-            *lon_cand = box;
+            *least_list = col->cand_list;
+            *mid_list = row->cand_list;
+            *lon_list = box->cand_list;
+            *rem_least = rem_in_col;
+            *rem_mid = rem_in_row;
+            *rem_most = rem_in_box;
 
         // col, box, row order
         } else if (rem_in_col<rem_in_box) {
-            *least_cand = col;
-            *mid_cand = box;
-            *lon_cand = row;
+            *least_list = col->cand_list;
+            *mid_list = box->cand_list;
+            *lon_list = row->cand_list;
+            *rem_least = rem_in_col;
+            *rem_mid = rem_in_box;
+            *rem_most = rem_in_row;
 
         // box, col, row order
         } else {
-            *least_cand = box;
-            *mid_cand = col;
-            *lon_cand = row;
+            *least_list = box->cand_list;
+            *mid_list = col->cand_list;
+            *lon_list = row->cand_list;
+            *rem_least = rem_in_box;
+            *rem_mid = rem_in_col;
+            *rem_most = rem_in_row;
         }
     }
 }
 
-
-// returns true (1) if first number in each list match, false (0) otherwise
+// returns true if first number in each list match, false otherwise
 int check_match(node* row_list, node* col_list, node* box_list) {
     if((row_list->data == col_list->data) && (row_list->data == box_list->data)) {
         return true;
@@ -374,11 +368,11 @@ node* create_box_num_list() {
 }
 
 
-/* randomly fills boxes which do not conflict with each other
-   note rows are populated in turn, but the for-loop iterates for number of box rows
-   columns are calculated by box cols * box counter
-   ie each box is completely filled starting with the top row, before going onto the next row followed by the next box */
-void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand) {
+// randomly fills boxes which do not conflict with each other
+// note rows are populated in tern, but the for-loop iterates for number of box rows
+// columns are calculated by box cols * box counter
+// ie each box is completely filled starting with the top row, before going onto the next row
+void partially_complete(int** grid, candidates** row_cand, candidates** col_cand, candidates** box_cand) {
     int row = 0;
     int col = 0;
     int box_counter = 0;
@@ -418,9 +412,9 @@ void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, 
                 grid[row][col] = insert_num;
 
                 // remove candidate number just inserted from box/row/col candidates
-                remove_candidate(&current_box_cand, insert_num, current_box_cand->id);
-                remove_candidate(&row_cand, insert_num, row);
-                remove_candidate(&col_cand, insert_num, col);
+                remove_candidate(current_box_cand, insert_num, current_box_cand->id);
+                remove_candidate(row_cand, insert_num, row);
+                remove_candidate(col_cand, insert_num, col);
 
                 col++;
             }
@@ -434,7 +428,7 @@ void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, 
 // removes number from candidates list
 // beware, can hang if del_num has already been removed from list (shouldn't happen, as only called during grid creation - no user interaction)
 void remove_candidate(candidates** can, int del_num, int id_num) {
-    candidates* current_can = *can;
+    candidates* current_can = can;
     node* temp;
 
     // finds correct row/box/col candidates
