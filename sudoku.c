@@ -1,17 +1,18 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <stdbool.h>
 
 #define SIZE 9
 
-// circular doubly linked list of all possible numbers to be entered in a box/row/column
+// doubly linked list of all possible numbers to be entered in a box/row/column
 typedef struct node {
     int data;
     struct node* next;
     struct node* prev;
 } node;
 
-// maintains list and attributes for each box/row/column - doubly linked list, NOT circular
+// maintains list and attributes for each box/row/column - doubly linked list
 typedef struct candidates {
     struct node* cand_list; // points to list of nodes containing all candidate numbers
     int id;
@@ -28,9 +29,12 @@ void display_board(int** grid); // iterates through grid to print game board
 void init(int** grid); // initialise grid
 void sepearator_row(); // prints a row of --- dependant on board SIZE
 void partially_complete(int** grid, candidates** row_cand, candidates** col_cand, candidates** box_cand); // randomly fills boxes which do not conflict with each other
-node* create_box_num_list(); // creates doubly linked circular list of all numbers for a box/row/column
+node* create_box_num_list(); // creates doubly linked list of all numbers for a box/row/column
 void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // deallocates memory
 candidates* generate_candidates(); // creates structure (doubly linked list) to contain all candidates for either rows/columns/boxes
+int check_match(node* row_list, node* col_list, node* box_list); // returns true if first number in each list match, false otherwise
+void set_order_to_compare(node** least, node** mid, node** most, int* rem_least, int* rem_mid, int* rem_most, candidates* row, candidates* col, candidates* box); // sets node pointers for when looking for a match to reduce comparisons
+int find_match(candidates* row_cand, candidates* col_cand, candidates* box_cand); // returns a matching candidate that exists in all lists (row/col/box)
 
 //////////////////////currently not being used
 int get_box_num(int row, int col); // calculate box number (0 indexed)
@@ -40,7 +44,8 @@ int get_box_num(int row, int col); // calculate box number (0 indexed)
 int main() {
 
     // sets seed for random number generator
-    srand(time(0));
+//    srand(time(0));
+    srand(1);/////////////////////////////////////////////////////////////////////////////////////////////////
 
     // declare grid
     int** grid;
@@ -79,10 +84,185 @@ int main() {
     // print board
     display_board(grid);
 
+
+candidates* temp_row = row_cand;
+candidates* temp_col = col_cand;
+candidates* temp_box = box_cand;
+
+// sets col to 3 and box to 1 (row is on 0)
+temp_col= temp_col->next->next->next;
+temp_box=temp_box->next;
+
+// 6 in row
+//remove_candidate(temp_row, 2, 0); // 5 now remaining
+//remove_candidate(temp_row, 3, 0); // 4 now remaining
+
+// 6 in col
+remove_candidate(temp_col, 2, 3); // 5 now remaining
+//remove_candidate(temp_col, 5, 3); // 4 now remaining
+
+// 9 in box
+remove_candidate(temp_box, 1, 1); // 8 now remaining
+remove_candidate(temp_box, 3, 1); // 7 now remaining
+remove_candidate(temp_box, 4, 1); // 6 now remaining
+remove_candidate(temp_box, 5, 1); // 5 now remaining
+remove_candidate(temp_box, 6, 1); // 4 now remaining
+
+printf("remaining, row = %d, col = %d, box = %d\n", temp_row->remaining, temp_col->remaining, temp_box->remaining);
+printf("box remains = 2, 7, 8, 9\n");
+printf("col remains = 1, 5, 6, 7, 8\n");
+printf("row remains = 1, 2, 3, 5, 7, 8\n");
+find_match(temp_row, temp_col, temp_box);
+
+
+
     clean_up(grid, row_cand, col_cand, box_cand);
 
     return 0;
 }
+
+
+// returns a matching candidate that exists in all lists (row/col/box)
+int find_match(candidates* row_cand, candidates* col_cand, candidates* box_cand) {
+    int rem_in_least;
+    int rem_in_mid;
+    int rem_in_most;
+    node* least, * mid, * most, * temp_mid, * temp_most;
+    int num;
+
+    // if none remain in any list, then cannot be a match
+    if(row_cand->remaining == 0 || col_cand->remaining == 0 || box_cand == 0) {
+        return NULL;
+    }
+
+    // sets node pointers and remaining variables so iterating for match will take minimal comparisons
+    set_order_to_compare(&least, &mid, &most, &rem_in_least, &rem_in_mid, &rem_in_most, row_cand, col_cand, box_cand);
+
+printf("least = %d\n", least->data);
+
+    // iterates smallest list (this will never need resetting)
+    for(int i=0; i<rem_in_least; i++) {
+        // gets first number from smallest list
+        num = least->data;
+
+        // resets temp nodes which have pointers moved forward in loop
+        temp_mid = mid;
+        temp_most = most;
+
+        // iterates medium length list
+        for(int j=0; j<rem_in_mid; j++) {
+
+            // if number matches mid length list, check longest list
+            if(num == temp_mid->data) {
+
+                for(int k=0; k<rem_in_most; k++){
+                    // if match found, return
+                    if(num == temp_most->data) {
+                        printf("match = %d\n", num);
+                        return num;
+                    }
+
+                    // if number in most is greater than num, no point checking further in list
+                    if(temp_most->data>num){
+                        break;
+                    }
+
+                    // check next
+                    temp_most = temp_most->next;
+                }
+            }
+
+            // if number in mid is greater than num, no point checking further in list
+            if(temp_mid->data>num) {
+                break;
+            }
+
+            // check next
+            temp_mid = temp_mid->next;
+        }
+        least = least->next;
+    }
+
+    // no match found
+    return NULL;
+}
+
+// sets node pointers for when looking for a match
+// allows iterating over the list with the least number of remaining candidates first to reduce comparisons
+void set_order_to_compare(node** least_list, node** mid_list, node** lon_list, int* rem_least, int* rem_mid, int* rem_most, candidates* row, candidates* col, candidates* box) {
+    int rem_in_row = row->remaining;
+    int rem_in_col = col->remaining;
+    int rem_in_box = box->remaining;
+
+    if(rem_in_row<rem_in_col) {
+
+        // row, col, box order
+        if(rem_in_col<rem_in_box) {
+            *least_list = row->cand_list;
+            *mid_list = col->cand_list;
+            *lon_list = box->cand_list;
+            *rem_least = rem_in_row;
+            *rem_mid = rem_in_col;
+            *rem_most = rem_in_box;
+
+        // row, box, col order
+        } else if (rem_in_row<rem_in_box) {
+            *least_list = row->cand_list;
+            *mid_list = box->cand_list;
+            *lon_list = col->cand_list;
+            *rem_least = rem_in_row;
+            *rem_mid = rem_in_box;
+            *rem_most = rem_in_col;
+
+        // box, row, col order
+        } else {
+            *least_list = box->cand_list;
+            *mid_list = row->cand_list;
+            *lon_list = col->cand_list;
+            *rem_least = rem_in_box;
+            *rem_mid = rem_in_row;
+            *rem_most = rem_in_col;
+        }
+    } else {
+
+        // col, row, box order
+        if(rem_in_row<rem_in_box) {
+            *least_list = col->cand_list;
+            *mid_list = row->cand_list;
+            *lon_list = box->cand_list;
+            *rem_least = rem_in_col;
+            *rem_mid = rem_in_row;
+            *rem_most = rem_in_box;
+
+        // col, box, row order
+        } else if (rem_in_col<rem_in_box) {
+            *least_list = col->cand_list;
+            *mid_list = box->cand_list;
+            *lon_list = row->cand_list;
+            *rem_least = rem_in_col;
+            *rem_mid = rem_in_box;
+            *rem_most = rem_in_row;
+
+        // box, col, row order
+        } else {
+            *least_list = box->cand_list;
+            *mid_list = col->cand_list;
+            *lon_list = row->cand_list;
+            *rem_least = rem_in_box;
+            *rem_mid = rem_in_col;
+            *rem_most = rem_in_row;
+        }
+    }
+}
+
+// returns true if first number in each list match, false otherwise
+int check_match(node* row_list, node* col_list, node* box_list) {
+    if((row_list->data == col_list->data) && (row_list->data == box_list->data)) {
+        return true;
+    }
+    else return false;
+}
+
 
 // creates structure to contain all candidates for either rows/columns/boxes
 candidates* generate_candidates() {
@@ -116,6 +296,7 @@ candidates* generate_candidates() {
     return cand;
 }
 
+
 // deallocates memory
 void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand) {
     candidates* temp;
@@ -146,7 +327,8 @@ void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates
     free(box_cand);
 }
 
-// creates doubly linked circular list of all numbers for a box/row/column
+
+// creates doubly linked list of all numbers for a box/row/column
 node* create_box_num_list() {
     // creates new list
     node* list, * last, *  current;
@@ -157,9 +339,9 @@ node* create_box_num_list() {
         list = (node*) malloc(sizeof(node));
 
         // creates first node
-        list -> prev = list;
+        list -> prev = NULL;
         list -> data = 1;
-        list -> next = list;
+        list -> next = NULL;
 
         // tracks last node created
         last = list;
@@ -172,7 +354,7 @@ node* create_box_num_list() {
             // inserts data to new node and sets prev to point at last and sets next to point back at first node
             current -> prev = last;
             current -> data = i;
-            current -> next = list;
+            current -> next = NULL;
 
             // sets last node created to point at new node
             last -> next = current;
@@ -180,25 +362,26 @@ node* create_box_num_list() {
             // updates last node tracker
             last = current;
         }
-
-        // sets first node to point back at last
-        list -> prev = current;
     }
 
     return list;
 }
 
+
 // randomly fills boxes which do not conflict with each other
-// note rows are iterated in tern, but the for loop iterates for number of box rows
-// columns are calculated by box cols * box index
+// note rows are populated in tern, but the for-loop iterates for number of box rows
+// columns are calculated by box cols * box counter
+// ie each box is completely filled starting with the top row, before going onto the next row
 void partially_complete(int** grid, candidates** row_cand, candidates** col_cand, candidates** box_cand) {
     int row = 0;
     int col = 0;
+    int box_counter = 0;
     candidates* current_box_cand = box_cand;
+    node* cand_list;
 
     // randomly fills non conflicting boxes
     // iterates boxes diagonally down and to the right
-    for(int box=0; box<SIZE/BOX_COLS; box++) {
+    for(int box=0; box<SIZE; box+=BOX_ROWS+1) {
 
         // sets pointer to current box candidates
         while(current_box_cand -> id != box){
@@ -208,21 +391,24 @@ void partially_complete(int** grid, candidates** row_cand, candidates** col_cand
         // iterates rows in a box
         for(int i=0; i<BOX_ROWS; i++) {
             // sets column index to beginning of next box to the right
-            col = BOX_COLS*box;
-            // iterates columns in a box
+            col = BOX_COLS*box_counter;
 
+            // iterates columns in a box
             for(int j=0; j<BOX_COLS; j++) {
+                // sets candidate list pointer
+                cand_list=current_box_cand->cand_list;
+
                 // generate random number between 0 and number of box_num_remaining-1
                 int cycle_num = rand() % (current_box_cand -> remaining);
 
-                // loops pointer to list of remaining numbers to be placed, essentially selecting a random number from those remaining for box
-                // doesn't loop if only 1 remaining
+                // moves pointer to candidate list of remaining numbers to be placed by the random number, essentially selecting a random number from those remaining for box
+                // doesn't move pointer if only 1 remaining
                 for(int i=0; i<cycle_num; i++){
-                    current_box_cand -> cand_list = current_box_cand -> cand_list -> next;
+                    cand_list = cand_list -> next;
                 }
 
                 // inserts random number from box_numbers list into grid
-                int insert_num = current_box_cand -> cand_list -> data;
+                int insert_num = cand_list -> data;
                 grid[row][col] = insert_num;
 
                 // remove candidate number just inserted from box/row/col candidates
@@ -234,10 +420,13 @@ void partially_complete(int** grid, candidates** row_cand, candidates** col_cand
             }
             row++;
         }
+        box_counter++;
     }
 }
 
+
 // removes number from candidates list
+// beware, can hang if del_num has already been removed from list (shouldn't happen, as only called during grid creation - no user interaction)
 void remove_candidate(candidates** can, int del_num, int id_num) {
     candidates* current_can = can;
     node* temp;
@@ -256,25 +445,31 @@ void remove_candidate(candidates** can, int del_num, int id_num) {
     }
 
     // removes candidate del_num
-    // only updates list pointers if more than one
-    // as if only 1 element remaining, it will be pointing at itself
+    // only updates list pointers if more than one,
+    // else can set list to be NULL if last number used
     if(current_can -> remaining > 1) {
-        temp ->prev->next = temp->next;
-        temp->next->prev = temp->prev;
-        current_can->cand_list= temp->next;
-    }
+        // if first node in list
+        if(temp->prev == NULL){
+            current_can->cand_list = temp->next;
+            current_can->cand_list->prev = NULL;
 
-    // sets candidates list to NULL if last remaining number used
-    if(current_can -> remaining == 1) {
+        // if last node in list
+        } else if (temp->next == NULL) {
+            temp->prev->next = NULL;
+        } else {
+            temp ->prev->next = temp->next;
+            temp->next->prev = temp->prev;
+        }
+    } else {
         current_can -> cand_list = NULL;
     }
 
     free(temp);
-    temp = NULL;
 
     // updates number of candidates remaining
     current_can -> remaining--;
 }
+
 
 // iterates through grid to print game board
 void display_board(int** grid) {
@@ -347,6 +542,7 @@ void display_board(int** grid) {
     }
 }
 
+
 // initialise grid
 void init(int** grid) {
     int row;
@@ -359,6 +555,7 @@ void init(int** grid) {
         }
     }
 }
+
 
 // prints a separator row
 void sepearator_row() {
@@ -378,6 +575,7 @@ void sepearator_row() {
     }
     printf("\n");
 }
+
 
 // calculate box number (0 indexed)
 int get_box_num(int row, int col) {
