@@ -4,7 +4,7 @@
 #include <time.h>
 #include <stdbool.h>
 
-#define SIZE 16
+#define SIZE 9
 
 // doubly linked list of all possible numbers to be entered in a box/row/column
 typedef struct node {
@@ -22,13 +22,6 @@ typedef struct candidates {
     struct candidates* prev;
 } candidates;
 
-// stack to store list of empty cells references
-typedef struct stack {
-    int* row;
-    int* col;
-    int top;
-} stack;
-
 // stored as global variables to avoid recalculating - will be constant for each game board size
 int BOX_ROWS = floor(sqrt(SIZE)); // rows per box - 9x9 board will be 3, 6x6 will be 2
 int BOX_COLS = ceil(sqrt(SIZE)); // cols per box - 9x9 board will be 3, 6x6 will be 3
@@ -38,17 +31,14 @@ void init(int** grid); // initialise grid
 void sepearator_row(); // prints a row of --- dependant on board SIZE
 void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // randomly fills boxes which do not conflict with each other
 node* create_box_num_list(); // creates doubly linked list of all numbers for a box/row/column
-void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand, stack* s); // deallocates memory
+void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // deallocates memory
 candidates* generate_candidates(); // creates structure (doubly linked list) to contain all candidates for either rows/columns/boxes
 int check_match(node* row_list, node* col_list, node* box_list); // returns true if first number in each list match, false otherwise
 void set_order_to_compare(candidates** least_cand, candidates** mid_cand, candidates** lon_cand, candidates* row, candidates* col, candidates* box); // sets node pointers for when looking for a match to reduce comparisons
 int find_match(node** least_list, candidates* mid_cand, candidates* most_cand, int* least_rem); // returns a matching candidate that exists in all lists (row/col/box)
-node* remove_candidate(candidates** can, int del_num, int id_num); // removes number from candidates list, node is returned for restoration and freeing
-void init_stack(stack* s); // initialises stack
-void set_empty_cells(stack* s, int** grid); // populates stack with grid references of empty cells;
-void fill_first_empty_cell(stack* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // tries all matches in first empty cell (a solution will exist)
-void restore_candidate(candidates** can, node* res_num, int id_num); // restores node to list of candidates
-int solve(stack* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // attempts to solve, if no matches, backtracks
+void remove_candidate(candidates** can, int del_num, int id_num); // removes number from candidates list
+
+//////////////////////currently not being used
 int get_box_num(int row, int col); // calculate box number (0 indexed)
 
 
@@ -56,7 +46,8 @@ int get_box_num(int row, int col); // calculate box number (0 indexed)
 int main() {
 
     // sets seed for random number generator
-    srand(time(0));
+//    srand(time(0));
+    srand(1);/////////////////////////////////////////////////////////////////////////////////////////////////
 
     // declare grid
     int** grid;
@@ -67,13 +58,13 @@ int main() {
     grid = malloc(SIZE * sizeof *grid);
     if(grid == NULL) {
         printf("Memory allocation failure\n");
-        exit(1);
+        return 1;
     }
 
     grid[0] = malloc(SIZE*SIZE * sizeof *grid[0]);
     if(grid[0] == NULL) {
         printf("Memory allocation failure\n");
-        exit(1);
+        return 1;
     }
 
     for(int i=1; i<SIZE; i++) {
@@ -92,204 +83,63 @@ int main() {
     // randomly fills boxes which do not conflict with each other
     partially_complete(grid, row_cand, col_cand, box_cand);
 
-    // creates stack of empty cell grid references;
-    stack empty_cells;
-    init_stack(&empty_cells);
-    set_empty_cells(&empty_cells, grid);
-
-    // completes grid - calls solve recursively within function
-    fill_first_empty_cell(&empty_cells, grid, row_cand, col_cand, box_cand);
-
     // print board
     display_board(grid);
 
-    // deallocates memory
-    clean_up(grid, row_cand, col_cand, box_cand, &empty_cells);
+candidates* temp_row = row_cand;
+candidates* temp_col = col_cand;
+candidates* temp_box = box_cand;
+
+// sets col to 3 and box to 1 (row is on 0)
+temp_col= temp_col->next->next->next;
+temp_box=temp_box->next;
+
+// 6 in row
+//remove_candidate(&temp_row, 2, 0); // 5 now remaining
+//remove_candidate(&temp_row, 3, 0); // 4 now remaining
+
+// 6 in col
+remove_candidate(&temp_col, 2, 3); // 5 now remaining
+//remove_candidate(&temp_col, 5, 3); // 4 now remaining
+
+// 9 in box
+remove_candidate(&temp_box, 1, 1); // 8 now remaining
+remove_candidate(&temp_box, 3, 1); // 7 now remaining
+remove_candidate(&temp_box, 4, 1); // 6 now remaining
+remove_candidate(&temp_box, 5, 1); // 5 now remaining
+remove_candidate(&temp_box, 6, 1); // 4 now remaining
+
+printf("remaining, row = %d, col = %d, box = %d\n", temp_row->remaining, temp_col->remaining, temp_box->remaining);
+printf("box remains = 2, 7, 8, 9\n");
+printf("col remains = 1, 5, 6, 7, 8\n");
+printf("row remains = 1, 2, 3, 5, 7, 8\n");
+
+
+
+// ordered candidates, allows access to remaining for each list
+candidates* least, * mid, * most;
+// smallest list, allows to be progressed without affecting originals to find ALL matches
+node* least_list;
+
+// sets order
+set_order_to_compare(&least, &mid, &most, temp_row, temp_col, temp_box);
+
+// sets list to be able to move forward for all matches
+least_list = least->cand_list;
+int least_counter = least->remaining;
+int match;
+
+
+ while(least_counter>0) {
+     match = find_match(&least_list, mid, most, &least_counter);
+     if(match != -1) {
+             printf("match = %d\n", match);
+     }
+ }
+
+    clean_up(grid, row_cand, col_cand, box_cand);
 
     return 0;
-}
-
-
-// attempts to solve grid, backtracks if no matches found
-int solve(stack* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand) {
-    // if no more empties, board is solved
-    if(empties->top == -1) {
-        return true;
-    }
-
-
-    // gets grid reference for next empty cell and updates top
-    int row = empties->row[empties->top];
-    int col = empties->col[empties->top];
-    empties->top--;
-
-    candidates* curr_row_can = row_cand;
-    candidates* curr_col_can = col_cand;
-    candidates* curr_box_can = box_cand;
-
-    // removed candidates to either restore or free
-    node* temp_row, * temp_col, * temp_box;
-
-    // sets candidates to correct cell
-    while(curr_row_can->id != row) {
-        curr_row_can = curr_row_can->next;
-    }
-    while(curr_col_can->id != col) {
-        curr_col_can = curr_col_can->next;
-    }
-    while(curr_box_can->id != get_box_num(row, col)) {
-        curr_box_can = curr_box_can->next;
-    }
-
-    // ordered candidates, allows access to remaining for each list (without knowing which is row/col/box)
-    candidates* least, * mid, * most;
-    // smallest list, allows to be progressed without affecting originals to find ALL matches
-    node* least_list;
-
-    // sets order
-    set_order_to_compare(&least, &mid, &most, curr_row_can, curr_col_can, curr_box_can);
-
-    // sets list to be able to move forward for all matches
-    least_list = least->cand_list;
-    int least_counter = least->remaining;
-    int match;
-
-    // loops all matches
-    while(least_counter>0) {
-        match = find_match(&least_list, mid, most, &least_counter);
-        // when theres a match
-        if(match != -1) {
-            // insert into grid
-            grid[row][col] = match;
-
-            // remove candidates
-            temp_row = remove_candidate(&curr_row_can, match, row);
-            temp_col = remove_candidate(&curr_col_can, match, col);
-            temp_box = remove_candidate(&curr_box_can, match, curr_box_can->id);
-
-            // if fully solved, done
-            // else restore candidates and try next match
-            if(solve(empties, grid, row_cand, col_cand, box_cand) == 1) {
-                free(temp_row);
-                free(temp_col);
-                free(temp_box);
-                return 1;
-            } else {
-                restore_candidate(&curr_row_can, temp_row, row);
-                restore_candidate(&curr_col_can, temp_col, col);
-                restore_candidate(&curr_box_can, temp_box, curr_box_can->id);
-            }
-        }
-    }
-    // restores empty cell to list of empties when backtracking
-    empties->top++;
-    empties->row[empties->top] = row;
-    empties->col[empties->top] = col;
-    return false;
-}
-
-
-// tries all matches in first empty cell (a solution will exist)
-void fill_first_empty_cell(stack* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand) {
-    // gets grid reference for first empty cell and updates top
-    int row = empties->row[empties->top];
-    int col = empties->col[empties->top];
-    empties->top--;
-
-    candidates* curr_row_can = row_cand;
-    candidates* curr_col_can = col_cand;
-    candidates* curr_box_can = box_cand;
-
-    // removed candidates to either restore or free
-    node* temp_row, * temp_col, * temp_box;
-
-    // sets candidates to correct cell
-    while(curr_row_can->id != row) {
-        curr_row_can = curr_row_can->next;
-    }
-    while(curr_col_can->id != col) {
-        curr_col_can = curr_col_can->next;
-    }
-    while(curr_box_can->id != get_box_num(row, col)) {
-        curr_box_can = curr_box_can->next;
-    }
-
-    // ordered candidates, allows access to remaining for each list (without knowing which is row/col/box)
-    candidates* least, * mid, * most;
-    // smallest list, allows to be progressed without affecting originals to find ALL matches
-    node* least_list;
-
-    // sets order
-    set_order_to_compare(&least, &mid, &most, curr_row_can, curr_col_can, curr_box_can);
-
-    // sets list to be able to move forward for all matches
-    least_list = least->cand_list;
-    int least_counter = least->remaining;
-    int match;
-
-    // loops all matches
-    while(least_counter>0) {
-        match = find_match(&least_list, mid, most, &least_counter);
-        // when theres a match
-        if(match != -1) {
-            // insert into grid
-            grid[row][col] = match;
-
-            // remove candidates
-            temp_row = remove_candidate(&curr_row_can, match, row);
-            temp_col = remove_candidate(&curr_col_can, match, col);
-            temp_box = remove_candidate(&curr_box_can, match, curr_box_can->id);
-
-            // if fully solved, done
-            // else restore candidates and try next match
-            if(solve(empties, grid, row_cand, col_cand, box_cand) == 1) {
-                free(temp_row);
-                free(temp_col);
-                free(temp_box);
-                return;
-            } else {
-                restore_candidate(&curr_row_can, temp_row, row);
-                restore_candidate(&curr_col_can, temp_col, col);
-                restore_candidate(&curr_box_can, temp_box, curr_box_can->id);
-            }
-        }
-    }
-}
-
-
-// sets grid references for empty cells
-void set_empty_cells(stack* s, int** grid) {
-    // iterates rows from bottom right corner
-    // (so top of stack will be pointing at first empty cell in top row)
-    for(int r=SIZE-1; r>=0; r--) {
-        // iterates columns starting at last column
-        for(int c=SIZE-1; c>=0; c--) {
-            if(grid[r][c] == 0) {
-                s->top = s->top+1;
-                s->row[s->top] = r;
-                s->col[s->top] = c;
-            }
-        }
-    }
-}
-
-
-// initialises stack
-void init_stack(stack* s) {
-    s->top = -1;
-    int MAX = (SIZE-BOX_ROWS)*SIZE;
-
-    s->row = (int*)malloc(MAX * sizeof(int));
-    if(s->row == NULL) {
-        printf("Memory allocation failure\n");
-        exit(1);
-    }
-
-    s->col = (int*)malloc(MAX * sizeof(int));
-    if(s->col == NULL) {
-        printf("Memory allocation failure\n");
-        exit(1);
-    }
 }
 
 
@@ -424,10 +274,6 @@ int check_match(node* row_list, node* col_list, node* box_list) {
 candidates* generate_candidates() {
     candidates* cand, * last, * current;
     cand = (candidates*) malloc(sizeof(candidates));
-    if(cand == NULL) {
-        printf("Memory allocation failure\n");
-        exit(1);
-    }
 
     // sets attributes for first row/column/box
     cand -> cand_list = create_box_num_list();
@@ -442,10 +288,6 @@ candidates* generate_candidates() {
     // adds candidates for remaining rows/columns/boxes
     for(int i=1; i<SIZE; i++) {
         current = (candidates*) malloc(sizeof(candidates));
-        if(current == NULL) {
-            printf("Memory allocation failure\n");
-            exit(1);
-        }
 
         current -> cand_list = create_box_num_list();
         current -> id = i;
@@ -462,7 +304,7 @@ candidates* generate_candidates() {
 
 
 // deallocates memory
-void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand, stack* s) {
+void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand) {
     candidates* temp;
 
     free(grid[0]);
@@ -489,9 +331,6 @@ void clean_up(int** grid, candidates* row_cand, candidates* col_cand, candidates
         free(temp);
     }
     free(box_cand);
-
-    free(s->row);
-    free(s->col);
 }
 
 
@@ -504,10 +343,6 @@ node* create_box_num_list() {
     if(SIZE>0) {
         // allocates memory for first node
         list = (node*) malloc(sizeof(node));
-        if(list == NULL) {
-            printf("Memory allocation failure\n");
-            exit(1);
-        }
 
         // creates first node
         list -> prev = NULL;
@@ -521,10 +356,6 @@ node* create_box_num_list() {
         for(int i=2; i<=SIZE; i++) {
             // allocates memory for each new node
             current = (node*) malloc(sizeof(node));
-            if(current == NULL) {
-                printf("Memory allocation failure\n");
-                exit(1);
-            }
 
             // inserts data to new node and sets prev to point at last and sets next to point back at first node
             current -> prev = last;
@@ -552,7 +383,7 @@ void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, 
     int col = 0;
     int box_counter = 0;
     candidates* current_box_cand = box_cand;
-    node* cand_list, * temp;
+    node* cand_list;
 
     // randomly fills non conflicting boxes
     // iterates boxes diagonally down and to the right
@@ -587,12 +418,9 @@ void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, 
                 grid[row][col] = insert_num;
 
                 // remove candidate number just inserted from box/row/col candidates
-                temp = remove_candidate(&current_box_cand, insert_num, current_box_cand->id);
-                free(temp);
-                temp = remove_candidate(&row_cand, insert_num, row);
-                free(temp);
-                temp = remove_candidate(&col_cand, insert_num, col);
-                free(temp);
+                remove_candidate(&current_box_cand, insert_num, current_box_cand->id);
+                remove_candidate(&row_cand, insert_num, row);
+                remove_candidate(&col_cand, insert_num, col);
 
                 col++;
             }
@@ -603,41 +431,9 @@ void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, 
 }
 
 
-// restores candidate to list
-void restore_candidate(candidates** can, node* res_num, int id_num) {
-    candidates* current_can = *can;
-
-    // finds correct row/box/col candidates
-    while(current_can -> id != id_num) {
-        current_can = current_can -> next;
-    }
-
-    // if none in list
-    if(current_can->remaining == 0) {
-        current_can->cand_list = res_num;
-    } else {
-
-        // if first in list
-        if(res_num->prev == NULL) {
-            current_can->cand_list = res_num;
-            res_num->next->prev = res_num;
-        } else {
-            res_num->prev->next = res_num;
-        }
-
-        // if not last in list
-        if(res_num->next != NULL) {
-            res_num->next->prev = res_num;
-        }
-    }
-
-    current_can->remaining++;
-}
-
-
 // removes number from candidates list
 // beware, can hang if del_num has already been removed from list (shouldn't happen, as only called during grid creation - no user interaction)
-node* remove_candidate(candidates** can, int del_num, int id_num) {
+void remove_candidate(candidates** can, int del_num, int id_num) {
     candidates* current_can = *can;
     node* temp;
 
@@ -667,17 +463,17 @@ node* remove_candidate(candidates** can, int del_num, int id_num) {
         } else if (temp->next == NULL) {
             temp->prev->next = NULL;
         } else {
-            temp->prev->next = temp->next;
+            temp ->prev->next = temp->next;
             temp->next->prev = temp->prev;
         }
     } else {
         current_can -> cand_list = NULL;
     }
 
+    free(temp);
+
     // updates number of candidates remaining
     current_can -> remaining--;
-
-    return temp;
 }
 
 
