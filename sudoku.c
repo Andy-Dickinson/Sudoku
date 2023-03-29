@@ -41,12 +41,12 @@ void init(int** grid); // initialise grid
 void sepearator_row(); // prints a row of --- dependant on board SIZE
 void partially_complete(int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // randomly fills boxes which do not conflict with each other
 node* create_box_num_list(); // creates doubly linked list of all numbers for a box/row/column
-void clean_up(int** sol_grid, int** player_grid, candidates* row_cand, candidates* col_cand, candidates* box_cand, cell_ref* emp);//, cell_ref* pop); // deallocates memory
+void clean_up(int** sol_grid, int** player_grid, candidates* row_cand, candidates* col_cand, candidates* box_cand, cell_ref* emp, cell_ref* pop); // deallocates memory
 candidates* generate_candidates(); // creates structure (doubly linked list) to contain all candidates for either rows/columns/boxes
 void set_order_to_compare(candidates** least_cand, candidates** mid_cand, candidates** lon_cand, candidates* row, candidates* col, candidates* box); // sets node pointers for when looking for a match to reduce comparisons
 int find_match(node** least_list, candidates* mid_cand, candidates* most_cand, int* least_rem); // returns a matching candidate that exists in all lists (row/col/box)
 node* remove_candidate(candidates** can, int del_num, int id_num); // removes number from candidates list, node is returned for restoration and freeing
-void allocate_cell_ref(cell_ref* s, bool empties); // allocates memory for cell references, empties is boolean to denote allocating for empties (1) or populated (0)
+void allocate_cell_ref(cell_ref* cells); // allocates memory for cell references structure
 void init_cell_ref(cell_ref* cells, int** grid); // populates struct with grid references;
 void fill_first_empty_cell(cell_ref* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // tries all matches in first empty cell (a solution will exist)
 void restore_candidate(candidates** can, node* res_num, int id_num); // restores node to list of candidates
@@ -82,12 +82,12 @@ srand(1);///////////////////////////////////////////////////////////////////////
     // initialise grid, setting each cell to 0
     init(solution_grid);
 
-    /* creates stack to hold grid references of populated cells initialised
-       here as when its first required, will need to contain all cells in
-       grid and stack is initialised by checking grid for 0 values */
-//    cell_ref populated_cells;
-//    allocate_cell_ref(&populated_cells, false);
-//    init_cell_ref(&populated_cells, solution_grid);
+    /* creates structure to hold grid references of populated cells
+       initialised here as when its first required, will need to contain
+       all cells in grid and stack is initialised by checking grid for 0 values */
+    cell_ref populated_cells;
+    allocate_cell_ref(&populated_cells);
+    init_cell_ref(&populated_cells, solution_grid);
 
     // generate candidates
     // each points to the first candidates list in row/col/box
@@ -100,7 +100,7 @@ srand(1);///////////////////////////////////////////////////////////////////////
 
     // creates stack of empty cell grid references;
     cell_ref empty_cells;
-    allocate_cell_ref(&empty_cells, true);
+    allocate_cell_ref(&empty_cells);
     init_cell_ref(&empty_cells, solution_grid);
 
     // completes grid - calls solve recursively within function
@@ -114,12 +114,12 @@ srand(1);///////////////////////////////////////////////////////////////////////
 
 
     // print board
-    display_board(solution_grid);
+//     display_board(solution_grid);
 //    printf("\n");
 //    display_board(player_grid);
 
     // deallocates memory
-    clean_up(solution_grid, player_grid, row_cand, col_cand, box_cand, &empty_cells);//, &populated_cells);
+    clean_up(solution_grid, player_grid, row_cand, col_cand, box_cand, &empty_cells, &populated_cells);
 
     return 0;
 }
@@ -337,28 +337,20 @@ void init_cell_ref(cell_ref* cells, int** grid) {
 }
 
 
-/* allocates memory for stack
-   empties is a boolean value -
-   1 = allocating for empties
-   0 = allocating for populated */
-void allocate_cell_ref(cell_ref* s, bool empties) {
-    s->top = -1;
-    int MAX;
+// allocates memory for cell references structure
+void allocate_cell_ref(cell_ref* cells) {
 
-    if(empties == 1) {
-        MAX = (SIZE-BOX_ROWS)*SIZE;
-    } else {
-        MAX = SIZE;
-    }
+    cells->top = -1;
+    int MAX = SIZE*SIZE;
 
-    s->row = (int*)malloc(MAX * sizeof(int));
-    if(s->row == NULL) {
+    cells->row = (int*)malloc(MAX * sizeof(int));
+    if(cells->row == NULL) {
         printf("Memory allocation failure\n");
         exit(1);
     }
 
-    s->col = (int*)malloc(MAX * sizeof(int));
-    if(s->col == NULL) {
+    cells->col = (int*)malloc(MAX * sizeof(int));
+    if(cells->col == NULL) {
         printf("Memory allocation failure\n");
         exit(1);
     }
@@ -525,7 +517,7 @@ candidates* generate_candidates() {
 
 
 // deallocates memory
-void clean_up(int** sol_grid, int** player_grid, candidates* row_cand, candidates* col_cand, candidates* box_cand, cell_ref* emp){//, cell_ref* pop) {
+void clean_up(int** sol_grid, int** player_grid, candidates* row_cand, candidates* col_cand, candidates* box_cand, cell_ref* emp, cell_ref* pop) {
 
 
     // frees grids
@@ -564,8 +556,8 @@ void clean_up(int** sol_grid, int** player_grid, candidates* row_cand, candidate
     free(emp->row);
     free(emp->col);
 
-//    free(pop->row);
-//    free(pop->col);
+    free(pop->row);
+    free(pop->col);
 }
 
 
