@@ -193,19 +193,22 @@ void clean_up(int*** sol_grid, int*** player_grid, candidates* row_cand, candida
     free(emp->col);
     emp->col = NULL;
 
-    // frees populated list nodes and structure
-    int del = pop->remaining;
-    populated_node* node= pop->populated_list->next;
-    for(int i=0; i<del-1; i++){
-        populated_node* temp = node;
-        node = temp->next;
-        free(temp);
-        temp = NULL;
-    }
-    node = NULL;
-    free(pop->populated_list);
-    pop->populated_list=NULL;
-
+    // frees populated list nodes
+//    free(pop->populated_list);
+//    pop->populated_list = NULL;
+int del = pop->remaining;
+populated_node* node= pop->populated_list->next;
+for(int i=0; i<del-1; i++){
+    populated_node* temp = node;
+    node = temp->next;
+    free(temp);
+    temp = NULL;
+}
+free(node);
+node = NULL;
+pop->populated_list->next=NULL;
+free(pop->populated_list);
+pop->populated_list = NULL;
     free(pop);
     pop = NULL;
 }
@@ -229,10 +232,10 @@ void remove_numbers(int** grid, int remove, populated* remain_ref) {
     int all_clue_nums_remain = true;
     populated_node* remove_from;
 
+    // sets cell to remove from to point at first node in list
+    remove_from = remain_ref->populated_list->next;
 removed=0;
     while(removed < remove) {
-        // sets cell to remove from to point at first node in list
-        remove_from = remain_ref->populated_list;
 
         // generate random number between 0 and number of populated cells left to be pick from -1
         int r_num = rand() % (remain_ref->remaining);
@@ -243,14 +246,9 @@ removed=0;
         }
 
         // updates access node if pointing to node to be removed
-        if(remove_from == remain_ref->populated_list) {
-            remain_ref->populated_list = remove_from->next;
+        if(remove_from == remain_ref->populated_list->next) {
+            remain_ref->populated_list->next = remove_from->next;
         }
-
-        // removes from populated_list and updates remaining
-        remove_from->next->prev = remove_from->prev;
-        remove_from->prev->next = remove_from->next;
-        remain_ref->remaining--;
 
         // gets value from grid
         int grid_value = grid[remove_from->row][remove_from->col];
@@ -261,9 +259,6 @@ removed=0;
 //        }
 
         removed++;
-
-        free(remove_from);
-        remove_from = NULL;
     }
 }
 
@@ -271,7 +266,7 @@ removed=0;
 // generate populated cells list
 populated* create_populated() {
     populated* p;
-    populated_node* last, * current;//, * access;
+    populated_node* last, * current, * access;
     int row = 0;
     int col = 0;
 
@@ -282,21 +277,36 @@ populated* create_populated() {
         exit(1);
     }
 
-    // allocates memory for first node
-    // outside loop as first points to NULL both ways
-    current = (populated_node*) malloc(sizeof(populated_node));
-    if(current == NULL) {
-            printf("Memory allocation failure\n");
-            exit(1);
-        }
+    /* allocates memory for all nodes
+    first node is used for freeing as memory allocation failed when
+    trying to allocate within the for loops per node. So required to allocate as
+    a single block */
+//    access = (populated_node*) malloc(((SIZE*SIZE)+1)*sizeof(populated_node));
+//    if(access == NULL) {
+//        printf("Memory allocation failure\n");
+//        exit(1);
+//    }
+access = (populated_node*) malloc(sizeof(populated_node));
+    access->prev = NULL;
+    access->row = -1;
+    access->col = -1;
 
+    // points current to correct point in memory
+//    current = access + 1;
+
+current = (populated_node*) malloc(sizeof(populated_node));
+    // creates first usable node
+    // outside loop as first points to NULL both ways
     current->next = NULL;
     current->prev = NULL;
     current->row = row;
     current->col = col;
 
     // sets access nodes next to point at current
-    p->populated_list = current;
+    access->next = current;
+
+    // sets attribute pointer as first access node to list
+    p->populated_list = access;
     p->remaining = 1;
 
     last = current;
@@ -305,12 +315,9 @@ populated* create_populated() {
     // creates nodes for doubly linked list
     for(row; row<SIZE; row++) {
         for(col; col<SIZE; col++) {
-            current = (populated_node*) malloc(sizeof(populated_node));
-            if(current == NULL) {
-                    printf("Memory allocation failure\n");
-                    exit(1);
-                }
-
+            // updates memory pointer for each node (to allow freeing after nodes get removed)
+//            current = last+1;
+current = (populated_node*) malloc(sizeof(populated_node));
             current->next = NULL;
             current->prev = last;
             current->row = row;
