@@ -66,7 +66,7 @@ void init_cell_ref(cell_ref* cells, int** grid); // populates struct with grid r
 void fill_first_empty_cell(cell_ref* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // tries all matches in first empty cell (a solution will exist)
 void restore_candidate(candidates** can, node* res_num, int id_num); // restores node to list of candidates
 void insert_candidate(candidates** can, int insert, int id_num); // used to create a node and insert into candidates when removing numbers from grid
-int solve(cell_ref* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand); // attempts to solve, if no matches, backtracks
+int solve(cell_ref* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand, bool adjust_grid, int dont_check); // attempts to solve, if no matches, backtracks
 int get_box_num(int row, int col); // calculate box number (0 indexed)
 void allocate_grid(int*** grid); // allocates memory for grid
 void copy_grid(int** from, int** to); // copies one grid to another
@@ -79,7 +79,21 @@ void deallocate_candidates(candidates* row_cand, candidates* col_cand, candidate
 int main() {
 
     // grid is SIZE * SIZE
-    SIZE = 9;
+    SIZE = 16;
+
+/*/////////// number to remove for hard
+size = 4 -> 10 (6 clues, min is 4)
+size = 6 -> 26 (10 clues, min is 8)
+size = 9 -> 61 (20 clues, min is 17)
+size = 12 -> 94 (50 clues, unknown min, found other hards with 48)
+size = 16 ->.....research and test
+
+medium = hard - SIZE
+easy = hard - ceil(SIZE*1.5)
+*/
+    int remove = 140;
+
+
 
     // number of rows/cols per box, will be constant for each game board
     BOX_ROWS = floor(sqrt(SIZE)); // rows per box - 9x9 board will be 3, 6x6 will be 2
@@ -128,14 +142,14 @@ srand(1);///////////////////////////////////////////////////////////////////////
 
 
     // removes number passed amount of numbers from grid
-    rem_grid_nums(player_grid, 10, populated_list);
+    rem_grid_nums(player_grid, remove, populated_list);
 
 
 
     // print board
-//   display_board(solution_grid);
+    // display_board(solution_grid);
 //    printf("\n");
-//   display_board(player_grid);
+   display_board(player_grid);
 
     // deallocates memory
     clean_up(&solution_grid, &player_grid, row_cand, col_cand, box_cand, &empty_cells, populated_list);
@@ -219,50 +233,41 @@ void deallocate_candidates(candidates* row_cand, candidates* col_cand, candidate
 }
 
 
-/*/////////// number to remove for hard
-size = 4 -> 10 (6 clues, min is 4)
-size = 6 -> 26 (10 clues, min is 8)
-size = 9 -> 61 (20 clues, min is 17)
-size = 12 -> 94 (50 clues, unknown min, found other hards with 48)
-size = 16 ->.....research and test
-
-medium = hard - SIZE
-easy = hard - ceil(SIZE*1.5)
-*/
-
-
 // removes numbers from player_grid
 void rem_grid_nums(int** grid, int remove, populated* remain_ref) {
     int removed = 0;
-    int all_clue_nums_remain = false;
-    populated_node* remove_from;
+    int all_clue_nums_remain = true;
     int* frequency;
 
-    // keeps track of how many of each number remain in grid to ensure only 1 can be reduced to 0 clues
     frequency = (int*) malloc(SIZE*sizeof(int));
+    if(frequency == NULL) {
+        printf("Memory allocation failure\n");
+        exit(1);
+    }
+
+    // keeps track of how many of each number remain in grid to ensure only 1 can be reduced to 0 clues
     for(int i=0; i<SIZE; i++) {
         frequency[i] = SIZE;
     }
 
     // generate empty candidate lists
-    candidates* row_cand = generate_candidates(true);
-    candidates* col_cand = generate_candidates(true);
-    candidates* box_cand = generate_candidates(true);
+    candidates* row_cand = generate_candidates(false);
+    candidates* col_cand = generate_candidates(false);
+    candidates* box_cand = generate_candidates(false);
 
     // allocates memory for empty cell refs and sets top to -1
     cell_ref empties;
     allocate_cell_ref(&empties);
 
-removed=11;
-    while(removed < remove) {
+    while(removed < remove && remain_ref->remaining != 0)  {
         // sets cell to remove from to point at first node in list
-        remove_from = remain_ref->populated_list;
+        populated_node* remove_from = remain_ref->populated_list;
 
-        // generate random number between 0 and number of populated cells left to be pick from -1
+        // generate random number between 0 and number of populated cells left to be pick from less 1
         int r_num = rand() % (remain_ref->remaining);
 
         // randomly sets remove_from cell reference node pointer
-        for(int i=0; i<r_num; i++) {
+        for(int i=0; i<r_num+1; i++) {
             remove_from = remove_from->next;
         }
 
@@ -295,19 +300,29 @@ removed=11;
         insert_candidate(&col_cand, grid_value, remove_from->col);
         insert_candidate(&box_cand, grid_value, get_box_num(remove_from->row, remove_from->col));
 
-
-
-
-// sets candidates to correct cell??????????????????????????????????
-
-        removed++;
+        // if more than 1 solution exists
+        if(solve(&empties, grid, row_cand, col_cand, box_cand, false, grid_value) == 1) {
+            grid[remove_from->row][remove_from->col] = grid_value;
+            empties.top--;
+        } else {
+            frequency[grid_value-1]--;
+            if(frequency[grid_value-1] == 0){
+                all_clue_nums_remain = 0;
+            }
+            removed++;
+        }
 
         free(remove_from);
         remove_from = NULL;
     }
-//////////// free empties ----- possibly done further up in match loop
+
+    // frees memory
+    free(empties.row);
+    empties.row = NULL;
+    free(empties.col);
+    empties.col = NULL;
     deallocate_candidates(row_cand, col_cand, box_cand);
-    row_cand, col_cand, box_cand = NULL;
+    row_cand = col_cand = box_cand = NULL;
     free(frequency);
     frequency = NULL;
 }
@@ -412,7 +427,7 @@ void allocate_grid(int*** grid) {
 
 
 // attempts to solve grid, backtracks if no matches found
-int solve(cell_ref* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand) {
+int solve(cell_ref* empties, int** grid, candidates* row_cand, candidates* col_cand, candidates* box_cand, bool adjust_grid, int dont_check) {
     // if no more empties, board is solved
     if(empties->top == -1) {
         return true;
@@ -459,9 +474,11 @@ int solve(cell_ref* empties, int** grid, candidates* row_cand, candidates* col_c
     while(least_counter>0) {
         match = find_match(&least_list, mid, most, &least_counter);
         // when theres a match
-        if(match != -1) {
+        if((match != -1) && (match != dont_check)) {
             // insert into grid
-            grid[row][col] = match;
+            if(adjust_grid == 1) {
+                grid[row][col] = match;
+            }
 
             // remove candidates
             temp_row = remove_candidate(&curr_row_can, match, row);
@@ -470,7 +487,8 @@ int solve(cell_ref* empties, int** grid, candidates* row_cand, candidates* col_c
 
             // if fully solved, done
             // else restore candidates and try next match
-            if(solve(empties, grid, row_cand, col_cand, box_cand) == 1) {
+            // restores candidates for all except the first one when trying to see if solvable when removing numbers from grid
+            if((solve(empties, grid, row_cand, col_cand, box_cand, adjust_grid, 0) == 1) || ((adjust_grid == false) && (dont_check != 0))) {
                 free(temp_row);
                 temp_row = NULL;
                 free(temp_col);
@@ -546,7 +564,7 @@ void fill_first_empty_cell(cell_ref* empties, int** grid, candidates* row_cand, 
 
             // if fully solved, done
             // else restore candidates and try next match
-            if(solve(empties, grid, row_cand, col_cand, box_cand) == 1) {
+            if(solve(empties, grid, row_cand, col_cand, box_cand, true, 0) == 1) {
                 free(temp_row);
                 temp_row = NULL;
                 free(temp_col);
@@ -890,6 +908,10 @@ void insert_candidate(candidates** can, int insert, int id_num) {
 
     // allocate memory for new node to insert
     node* res_num = (node*) malloc(sizeof(node));
+    if(res_num == NULL) {
+        printf("Memory allocation failure\n");
+        exit(1);
+    }
 
     res_num->data = insert;
     res_num->next = NULL;
