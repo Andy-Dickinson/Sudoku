@@ -1,128 +1,27 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <time.h>
-#include <stdbool.h>
-#include <string.h>
+#include "sudoku.h"
+#include "generate_board.h"
 
-// doubly linked list of all possible numbers to be entered in a box/row/column
-typedef struct node
-{
-    int data;
-    struct node *next;
-    struct node *prev;
-} node;
+// creates a solution and player grid
+void generate_grids() {
 
-// maintains list and attributes for each box/row/column - doubly linked list
-typedef struct candidates
-{
-    struct node *cand_list; // points to list of nodes containing all candidate numbers
-    int id;
-    int remaining; // number of candidates left in list
-    struct candidates *next;
-    struct candidates *prev;
-} candidates;
-
-// stores list of cell references
-// when used by empty_cells, it is used like a stack
-// when used by populated_cells, it is randomly accessed to select a cell and used similar to an array
-typedef struct cell_ref
-{
-    // pointers due to size of arrays is dependant on size which is game board size dependant
-    int *row;
-    int *col;
-    int top;
-} cell_ref;
-
-// stores the grid references for each populated cell
-// circular doubly linked list allowing pointer into the list to be shuffled
-typedef struct populated_node
-{
-    int row;
-    int col;
-    struct populated_node *next;
-    struct populated_node *prev;
-} populated_node;
-
-// stores the first access node to the populated list and number of nodes remaining
-typedef struct populated
-{
-    struct populated_node *populated_list;
-    int remaining;
-} populated;
-
-// stored as global variables to avoid recalculating - will be constant for each game board size
-int SIZE;
-int BOX_ROWS; // rows per box - 9x9 board will be 3, 6x6 will be 2
-int BOX_COLS; // cols per box - 9x9 board will be 3, 6x6 will be 3
-clock_t timer;
-
-void display_board(int **grid);                                                                                                                      // iterates through grid to print game board
-void init(int **grid);                                                                                                                               // initialise grid
-void sepearator_row();                                                                                                                               // prints a row of --- dependant on board SIZE
-void partially_complete(int **grid, candidates *row_cand, candidates *col_cand, candidates *box_cand);                                               // randomly fills boxes which do not conflict with each other
-node *create_box_num_list();                                                                                                                         // creates doubly linked list of all numbers for a box/row/column
-void clean_up(int ***sol_grid, int ***player_grid, candidates *row_cand, candidates *col_cand, candidates *box_cand, cell_ref *emp, populated *pop); // deallocates memory
-candidates *generate_candidates(bool populated);                                                                                                     // creates structure (doubly linked list) to contain all candidates for either rows/columns/boxes
-void set_order_to_compare(candidates **least_cand, candidates **mid_cand, candidates **lon_cand, candidates *row, candidates *col, candidates *box); // sets node pointers for when looking for a match to reduce comparisons
-int find_match(node **least_list, candidates *mid_cand, candidates *most_cand, int *least_rem);                                                      // returns a matching candidate that exists in all lists (row/col/box)
-node *remove_candidate(candidates **can, int del_num, int id_num);                                                                                   // removes number from candidates list, node is returned for restoration and freeing
-void allocate_cell_ref(cell_ref *cells);                                                                                                             // allocates memory for cell references structure
-void init_cell_ref(cell_ref *cells, int **grid);                                                                                                     // populates struct with grid references;
-void fill_first_empty_cell(cell_ref *empties, int **grid, candidates *row_cand, candidates *col_cand, candidates *box_cand);                         // tries all matches in first empty cell (a solution will exist)
-void restore_candidate(candidates **can, node *res_num, int id_num);                                                                                 // restores node to list of candidates
-void insert_candidate(candidates **can, int insert, int id_num);                                                                                     // used to create a node and insert into candidates when removing numbers from grid
-int solve(cell_ref *empties, int **grid, candidates *row_cand, candidates *col_cand, candidates *box_cand, bool adjust_grid, int dont_check);        // attempts to solve, if no matches, backtracks
-int get_box_num(int row, int col);                                                                                                                   // calculate box number (0 indexed)
-void allocate_grid(int ***grid);                                                                                                                     // allocates memory for grid
-void copy_grid(int **from, int **to);                                                                                                                // copies one grid to another
-void rem_grid_nums(int **grid, int remove, populated *remain_ref);                                                                                   // removes 'remove' amount of numbers from grid (based on difficulty)
-populated *create_populated();                                                                                                                       // generates populated cells list;
-void deallocate_candidates(candidates *row_cand, candidates *col_cand, candidates *box_cand);                                                        // frees memory for candidates
-
-// program starts here
-int main()
-{
-
-    // grid is SIZE * SIZE
-    SIZE = 16;
-
-    /*/////////// number to remove for hard
-    size = 4 -> 10 (6 clues, min is 4)
-    size = 6 -> 26 (10 clues, min is 8)
-    size = 9 -> 61 (20 clues, min is 17)
-    size = 12 -> 94 (50 clues, unknown min, found other hards with 48)
-    size = 16 ->.....research and test
-
-    medium = hard - SIZE
-    easy = hard - ceil(SIZE*1.5)
-    */
-    int remove = 140;
-
-    // number of rows/cols per box, will be constant for each game board
-    BOX_ROWS = floor(sqrt(SIZE)); // rows per box - 9x9 board will be 3, 6x6 will be 2
-    BOX_COLS = ceil(sqrt(SIZE));  // cols per box - 9x9 board will be 3, 6x6 will be 3
+    set_box_row_col();
 
     // sets seed for random number generator
-    //    srand(time(0));
-    srand(1); //////////////////////////////////////////////////////////////////////////
-
-    // declare grid
-    int **solution_grid;
-    int **player_grid;
+    srand(1);
 
     // allocates memory for grids
     allocate_grid(&solution_grid);
     allocate_grid(&player_grid);
+    allocate_grid(&original_player_grid);
 
     // initialise grid, setting each cell to 0
-    init(solution_grid);
+    init_grid(solution_grid);
 
     // generate candidates
     // each points to the first candidates list in row/col/box
-    candidates *row_cand = generate_candidates(true);
-    candidates *col_cand = generate_candidates(true);
-    candidates *box_cand = generate_candidates(true);
+    candidates *row_cand = init_candidates(true);
+    candidates *col_cand = init_candidates(true);
+    candidates *box_cand = init_candidates(true);
 
     // randomly fills boxes which do not conflict with each other
     partially_complete(solution_grid, row_cand, col_cand, box_cand);
@@ -139,37 +38,38 @@ int main()
     copy_grid(solution_grid, player_grid);
 
     // creates doubly linked circular list of cell references to all populated cells
-    populated *populated_list = create_populated();
+    populated *populated_list = init_populated_cell_ref();
 
     // removes number passed amount of numbers from grid
-    rem_grid_nums(player_grid, remove, populated_list);
+    rem_grid_nums(player_grid, num_to_remove, populated_list);
 
-    // print board
-//    display_board(solution_grid);
-    //    printf("\n");
-    display_board(player_grid);
+    // makes a copy of the original grid to compare player_grid when printing colours
+    copy_grid(player_grid, original_player_grid);
 
     // deallocates memory
-    clean_up(&solution_grid, &player_grid, row_cand, col_cand, box_cand, &empty_cells, populated_list);
-
-    return 0;
+    clean_up(row_cand, col_cand, box_cand, &empty_cells, populated_list);
 }
 
+
+// calculates number of rows and columns per box and sets variables so calculation is not required multiple times
+void set_box_row_col() {
+    // number of rows/cols per box, will be constant for each game board
+    BOX_ROWS = floor(sqrt(SIZE)); // rows per box - 9x9 board will be 3, 6x6 will be 2
+    BOX_COLS = ceil(sqrt(SIZE));  // cols per box - 9x9 board will be 3, 6x6 will be 3
+}
+
+
+// frees grids
+void deallocate_grid(int*** grid) {
+    free(*grid[0]);
+    *grid[0] = NULL;
+    free(*grid);
+    *grid = NULL;
+}
+
+
 // deallocates memory
-void clean_up(int ***sol_grid, int ***player_grid, candidates *row_cand, candidates *col_cand, candidates *box_cand, cell_ref *emp, populated *pop)
-{
-
-    // frees grids
-    free(*sol_grid[0]);
-    *sol_grid[0] = NULL;
-    free(*sol_grid);
-    *sol_grid = NULL;
-
-    free(*player_grid[0]);
-    *player_grid[0] = NULL;
-    free(*player_grid);
-    *player_grid = NULL;
-
+void clean_up(candidates *row_cand, candidates *col_cand, candidates *box_cand, cell_ref *emp, populated *pop) {
     // frees candidates (nodes are freed in solve function)
     deallocate_candidates(row_cand, col_cand, box_cand);
 
@@ -201,12 +101,10 @@ void clean_up(int ***sol_grid, int ***player_grid, candidates *row_cand, candida
 }
 
 // frees memory for candidates
-void deallocate_candidates(candidates *row_cand, candidates *col_cand, candidates *box_cand)
-{
+void deallocate_candidates(candidates *row_cand, candidates *col_cand, candidates *box_cand) {
     candidates *temp;
 
-    while (row_cand->next != NULL)
-    {
+    while (row_cand->next != NULL) {
         temp = row_cand;
         row_cand = row_cand->next;
         free(temp);
@@ -237,7 +135,7 @@ void deallocate_candidates(candidates *row_cand, candidates *col_cand, candidate
 }
 
 // removes numbers from player_grid
-void rem_grid_nums(int **grid, int remove, populated *remain_ref)
+void rem_grid_nums(int **grid, int num_to_remove, populated *remain_ref)
 {
     int removed = 0;
     int all_clue_nums_remain = true;
@@ -256,16 +154,16 @@ void rem_grid_nums(int **grid, int remove, populated *remain_ref)
     }
 
     // generate empty candidate lists
-    candidates *row_cand = generate_candidates(false);
-    candidates *col_cand = generate_candidates(false);
-    candidates *box_cand = generate_candidates(false);
+    candidates *row_cand = init_candidates(false);
+    candidates *col_cand = init_candidates(false);
+    candidates *box_cand = init_candidates(false);
 
     // allocates memory for empty cell refs and sets top to -1
     cell_ref empties;
     allocate_cell_ref(&empties);
 
     // while not enough numbers have been removed and there are still numbers to try to remove
-    while (removed < remove && remain_ref->remaining > 0)
+    while (removed < num_to_remove && remain_ref->remaining > 0)
     {
         // sets cell to remove from to point at first node in list
         populated_node *remove_from = remain_ref->populated_list;
@@ -345,8 +243,7 @@ void rem_grid_nums(int **grid, int remove, populated *remain_ref)
         remove_from = NULL;
     }
 
-printf("removed = %d\n", removed);
-
+    grid_empties = removed;
     // frees memory
     free(empties.row);
     empties.row = NULL;
@@ -359,7 +256,7 @@ printf("removed = %d\n", removed);
 }
 
 // generate populated cells list
-populated *create_populated()
+populated *init_populated_cell_ref()
 {
     populated *p;
     populated_node *last, *current; //, * access;
@@ -521,7 +418,7 @@ int solve(cell_ref *empties, int **grid, candidates *row_cand, candidates *col_c
     // looks for match against every element from shortest list
     while (least_counter > 0)
     {
-        match = find_match(&least_list, mid, most, &least_counter);
+        match = get_match(&least_list, mid, most, &least_counter);
         // when theres a match
         if ((match != -1) && (match != dont_check))
         {
@@ -612,7 +509,7 @@ void fill_first_empty_cell(cell_ref *empties, int **grid, candidates *row_cand, 
     // looks for match against every element from shortest list, one of these will work (as first cell which can cause other conflicts)
     while (least_counter > 0)
     {
-        match = find_match(&least_list, mid, most, &least_counter);
+        match = get_match(&least_list, mid, most, &least_counter);
         // when theres a match
         if (match != -1)
         {
@@ -694,7 +591,7 @@ void allocate_cell_ref(cell_ref *cells)
    least_list (with fewest remaining) is passed in as a list (pointer to a list pointer) rather than a candidate,
    so pointer can be advanced when finding ALL matches without affecting original candidate pointer
    remaining are passed in as candidates */
-int find_match(node **least_list, candidates *mid_cand, candidates *most_cand, int *least_counter)
+int get_match(node **least_list, candidates *mid_cand, candidates *most_cand, int *least_counter)
 {
     node *temp_mid, *temp_most;
     int num;
@@ -830,7 +727,7 @@ void set_order_to_compare(candidates **least_cand, candidates **mid_cand, candid
 
 // creates structure to contain all candidates for either rows/columns/boxes
 // when populated is true, candidate list will be fully populated, else it will point to NULL and remaining will be 0
-candidates *generate_candidates(bool populated)
+candidates *init_candidates(bool populated)
 {
     candidates *cand, *last, *current;
     cand = (candidates *)malloc(sizeof(candidates));
@@ -843,7 +740,7 @@ candidates *generate_candidates(bool populated)
     // sets attributes for first row/column/box
     if (populated == 1)
     {
-        cand->cand_list = create_box_num_list();
+        cand->cand_list = init_cand_num_list();
         cand->remaining = SIZE;
     }
     else
@@ -870,7 +767,7 @@ candidates *generate_candidates(bool populated)
 
         if (populated == 1)
         {
-            current->cand_list = create_box_num_list();
+            current->cand_list = init_cand_num_list();
             current->remaining = SIZE;
         }
         else
@@ -890,7 +787,7 @@ candidates *generate_candidates(bool populated)
 }
 
 // creates doubly linked list of all numbers for a box/row/column
-node *create_box_num_list()
+node *init_cand_num_list()
 {
     // creates new list
     node *list, *last, *current;
@@ -1225,12 +1122,27 @@ void display_board(int **grid)
             }
             if (value == 0)
             {
-                // increases readability rather than using 0's
-                printf("_ ");
+                // prints "_" to increase readability rather than using 0's
+                // colour is changed to yellow to show empty and interactive space
+                printf("\033[0;33m_ \033[0;37m");
             }
             else
             {
-                printf("%d ", value);
+                // if an interactive space, change colours
+                if(original_player_grid[row][col] == 0) {
+                    if(colour_aid_setting == 0) {
+                        // yellow if colour aid setting off
+                        printf("\033[0;33m");
+                    } else if (solution_grid[row][col] == value) {
+                        // green when correct
+                        printf("\033[0;32m");
+                    } else {
+                        // red when incorrect
+                        printf("\033[0;31m");
+                    }
+                }
+                // prints value and resets colour to white
+                printf("%d \033[0;37m", value);
             }
 
             // box separator, checks if end of a box horizontally
@@ -1251,7 +1163,7 @@ void display_board(int **grid)
 }
 
 // initialise grid
-void init(int **grid)
+void init_grid(int **grid)
 {
     int row;
     int col;
