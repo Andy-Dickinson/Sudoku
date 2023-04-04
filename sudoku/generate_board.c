@@ -1,6 +1,7 @@
 #include "sudoku.h"
 #include "generate_board.h"
 
+
 // creates a solution and player grid
 void generate_grids() {
 

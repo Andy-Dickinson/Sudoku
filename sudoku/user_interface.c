@@ -373,7 +373,12 @@ void set_num_to_remove(){
 // sets variables prior to generating board
 void create_new_game() {
     set_num_to_remove();
+
+    // ensures variables are set correctly before starting
     solved = false;
+    insert_row = -1;
+    insert_col = -1;
+    insert_value = -1;
 
     printf("\nGenerating board...\n");
     generate_grids();
@@ -404,8 +409,7 @@ void play_game() {
         }
     }
 
-
-
+    // completed board
     system("cls");
     printf("**********************  SUDOKU  **********************\n\n");
 
@@ -418,8 +422,6 @@ void play_game() {
 
 
 void check_grid_solved() {
-
-
     for(int row=0; row<SIZE; row++){
         for(int col=0; col<SIZE; col++){
             if(solution_grid[row][col] != player_grid[row][col]){
