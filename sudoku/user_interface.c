@@ -318,7 +318,7 @@ int parse_settings_input(int select, int select_max, bool ingame) {
         break;
     case 3:
         if(ingame){
-            // save(); /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            save();
         }else{
             change_board_size();
         }
@@ -802,4 +802,152 @@ void deallocate_stacks() {
 
     free(undo_stack.moves);
     free(redo_stack.moves);
+}
+
+
+void save(){
+    bool invalid = false;
+    char choice[3];
+
+    do{
+        system("cls");
+        printf("**********************  SUDOKU  **********************\n");
+        printf("                      SAVE MENU\n\n");
+
+        list_files(true, &invalid, &choice[0]);
+
+    }while(invalid);
+
+    if(choice[0] != '\n'){
+        write_to_file(atoi(choice));
+    }
+}
+
+
+void write_to_file(int selection){
+    FILE* file_pt;
+    char filename[80];
+    DIR* directory;
+    struct dirent* dir;
+
+    directory = opendir("save-files");
+
+
+    if(selection == 1){
+            printf("here2");
+        time_t rawtime;
+        struct tm *timedate;
+
+        time(&rawtime);
+
+        timedate = localtime(&rawtime);
+
+        strftime(filename,80,"%Y_%b_%d_%H.%M.%S.txt", timedate);
+
+    } else {
+        int file_number = 2;
+
+        while((dir = readdir(directory)) != NULL) {
+            if((strcmp(dir->d_name, ".") != 0) && (strcmp(dir->d_name, "..") != 0)){
+                if(file_number == selection){
+                    strcpy(filename, dir->d_name);
+                    break;
+                }
+                file_number++;
+            }
+        }
+    }
+
+    char path[80] = "./save-files/";
+    strcat(path, filename);
+
+
+    file_pt = fopen(path, "w");
+    fflush(stdin);
+    rewind(file_pt);
+
+    fprintf(file_pt, "%d\n", SIZE);
+
+    fclose(file_pt);
+    closedir(directory);
+}
+
+
+/* lists save/load files available and returns users choice
+also sets invalid boolean passed as required */
+void list_files(bool saving, bool* invalid, char* selection) {
+    char* choice = selection;
+    choice[0] = '0';
+    DIR* directory;
+    struct dirent* dir;
+
+    directory = opendir("save-files");
+
+    // attempts to create directory if does not exist
+    if(!directory){
+        int dir_check_valid = mkdir("save-files");
+
+        if(dir_check_valid != 0){
+            printf("Cannot create directory, unable to save\n");
+            printf("Press enter to continue\n");
+            fflush(stdin);
+            getchar();
+            *invalid = false;
+            return;
+        }
+
+        directory = opendir("save-files");
+    }
+
+    int file_number = 1;
+
+    printf("Available files:\n\n");
+
+    // option for when saving for new file
+    if(saving){
+        printf("%d. New save file\n\n", file_number);
+        file_number++;
+    }
+
+    // prints current files (not including parent and current directory)
+    while((dir = readdir(directory)) != NULL) {
+        if((strcmp(dir->d_name, ".") != 0) && (strcmp(dir->d_name, "..") != 0)){
+            printf("%d. %s\n", file_number, dir->d_name);
+            file_number++;
+        }
+    }
+
+    // when loading, if no files
+    if(!saving && file_number == 1){
+        printf("No files to load\n\n");
+        printf("Press enter to continue\n");
+        closedir(directory);
+        fflush(stdin);
+        getchar();
+        *invalid = false;
+        return;
+    }
+
+    if(*invalid){
+        printf("\nChoice must be a whole number up to %d\n", file_number-1);
+    }else{
+        printf("\n\n");
+    }
+
+    printf("Please enter a number for your choice or enter to go back:\n");
+    fflush(stdin);
+    fgets(&choice[0], sizeof(choice), stdin);
+
+
+    if(choice[0] == '\n'){
+        *invalid = false;
+    }else if(!isdigit(choice[0]) || atoi(choice) < 1 || atoi(choice) >= file_number){
+        *invalid = true;
+        choice = "";
+    } else {
+        *invalid = false;
+    }
+
+    closedir(directory);
+    return;
 }

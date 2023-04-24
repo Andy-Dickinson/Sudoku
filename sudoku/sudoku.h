@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <math.h>
+#include<dirent.h>
 
 extern int SIZE;
 extern bool timer_setting;

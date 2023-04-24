@@ -44,5 +44,8 @@ void init_stacks(int); // initialises undo and redo stacks
 void push_stack(moves_stack*); // pushes last move details to undo stack
 void extend_stack(moves_stack*, int);
 void deallocate_stacks();
+void save();
+void write_to_file(int);
+void list_files(bool, bool*, char*); // lists save/load files available and gets users choice
 
 #endif // USER_INTERFACE_H
