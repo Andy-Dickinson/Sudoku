@@ -9,6 +9,10 @@ char* difficulty = &medium[0];
 int insert_row;
 int insert_col;
 int insert_value;
+bool quit_current_game;
+moves_stack undo_stack;
+moves_stack redo_stack;
+bool undo_operation;
 
 
 // prints main menu
@@ -92,7 +96,60 @@ void settings() {
             invalid = get_input(&input[0]);
 
             if(invalid == 0) {
-                invalid = parse_settings_input(atoi(input), 4);
+                invalid = parse_settings_input(atoi(input), 4, false);
+            }
+
+        } while (input[0] != '\n');
+}
+
+
+// in game settings menu
+void ingame_settings() {
+bool invalid = false;
+    char input[2];
+    char on[] = "ON";
+    char off[] = "OFF";
+    char* timer_text;
+    char* colour_aid_text;
+
+    do {
+            if(timer_setting) {
+                timer_text = &on[0];
+            }else {
+                timer_text = &off[0];
+            }
+
+            if(colour_aid_setting) {
+                colour_aid_text = &on[0];
+            }else {
+                colour_aid_text = &off[0];
+            }
+
+            system("cls");
+
+            printf("**********************  SUDOKU  **********************\n");
+            printf("                       SETTINGS\n");
+            printf("\n\n");
+            printf("1. Timer - %s\n", timer_text);
+            printf("2. Valid input colour aid - %s\n", colour_aid_text);
+            printf("3. Save game\n");
+            printf("4. Quit to main menu\n");
+            // if options are added/removed, change max flag passed to parse_settings_input
+            printf("\nPress enter to return to gameplay\n\n");
+            if(invalid){
+                printf("%c is not a valid input\n", input[0]);
+            } else{
+                printf("\n");
+            }
+
+            invalid = get_input(&input[0]);
+
+            if(invalid == 0) {
+                invalid = parse_settings_input(atoi(input), 4, true);
+            }
+
+            if(atoi(input) == 4){
+                input[0] = '\n';
             }
 
         } while (input[0] != '\n');
@@ -238,7 +295,7 @@ int parse_size_input(int select, int select_max) {
 
 
 // determines if integer entered is valid and if so changes variable
-int parse_settings_input(int select, int select_max) {
+int parse_settings_input(int select, int select_max, bool ingame) {
     bool invalid = false;
     if(select>select_max){
         select = 0;
@@ -260,10 +317,18 @@ int parse_settings_input(int select, int select_max) {
         }
         break;
     case 3:
-        change_board_size();
+        if(ingame){
+            // save(); /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        }else{
+            change_board_size();
+        }
         break;
     case 4:
-        change_difficulty();
+        if(ingame){
+            quit_current_game = true;
+        }else{
+            change_difficulty();
+        }
         break;
     default:
         invalid = true;
@@ -372,52 +437,86 @@ void set_num_to_remove(){
 
 // sets variables prior to generating board
 void create_new_game() {
+    // based on game difficulty set
     set_num_to_remove();
 
     // ensures variables are set correctly before starting
+    quit_current_game = false;
     solved = false;
-    insert_row = -1;
-    insert_col = -1;
-    insert_value = -1;
 
     printf("\nGenerating board...\n");
     generate_grids();
+
+    init_stacks(SIZE*SIZE);
 
     play_game();
 
     deallocate_grid(&solution_grid);
     deallocate_grid(&player_grid);
     deallocate_grid(&original_player_grid);
+    deallocate_stacks();
 }
 
 
 // displays game board until solved
 void play_game() {
-    while(!solved) {
+    while(!solved && !quit_current_game) {
+        /* global variables initialised on each loop to stop past values getting written to grid by mistake
+         e.g. if a value was set, followed by the grid reference of another cell but without setting a value
+         followed by entering and exiting the menu */
+
+        insert_row = -1;
+        insert_col = -1;
+        insert_value = -1;
+
         get_grid_ref();
 
-        if(player_grid[insert_row][insert_col] == 0 && insert_value != 0){
-            grid_empties--;
-        } else if (player_grid[insert_row][insert_col] != 0 && insert_value == 0){
-            grid_empties++;
+        // exits loop if quit selected from in game settings menu
+        if(quit_current_game){
+            break;
         }
 
-        player_grid[insert_row][insert_col] = insert_value;
 
-        if(grid_empties == 0){
-            check_grid_solved();
+        /* Stops possibly trying to insert a value when insert_value has not been set
+        e.g. after going into settings and returning to gameplay without specifying a grid value
+        then should continue loop */
+        if(insert_value>=0){
+            if(player_grid[insert_row][insert_col] == 0 && insert_value != 0){
+                grid_empties--;
+            } else if (player_grid[insert_row][insert_col] != 0 && insert_value == 0){
+                grid_empties++;
+            }
+
+            // stops undo/redo pushing back to stack
+            if(!undo_operation){
+                push_stack(&undo_stack);
+
+                // frees memory and clears redo stack when new move played
+                for(int i=0; i<redo_stack.top; i++){
+                    free(redo_stack.moves[i]);
+                }
+                redo_stack.top = -1;
+            }
+            player_grid[insert_row][insert_col] = insert_value;
+
+            if(grid_empties == 0){
+                check_grid_solved();
+            }
         }
     }
 
-    // completed board
-    system("cls");
-    printf("**********************  SUDOKU  **********************\n\n");
+    if(!quit_current_game){
+        // completed board
+        system("cls");
+        printf("**********************  SUDOKU  **********************\n\n");
 
-    display_board(player_grid);
-    printf("\n\nCongratulations!!!\n");
-    printf("Enter any key to return to the main menu\n");
+        display_board(player_grid);
+        printf("\n\nCongratulations!!!\n");
+        printf("Enter any key to return to the main menu\n");
 
-    getchar();
+        fflush(stdin);
+        getchar();
+    }
 }
 
 
@@ -443,6 +542,9 @@ void get_grid_ref() {
 
         display_board(player_grid);
 
+        printf("\nKey: U=Undo R=Redo S=Settings\n");
+
+
         printf("\n");
         if(invalid) {
             for(int i=0; i<sizeof(input); i++){
@@ -456,6 +558,7 @@ void get_grid_ref() {
         } else{
             printf("\n");
         }
+
         printf("Please enter grid reference and value to insert e.g.: A4 3\n");
 
         fflush(stdin);
@@ -472,9 +575,28 @@ void get_grid_ref() {
 int check_insert_input(char* in) {
     char* input = in;
     bool invalid = false;
+    undo_operation = false;
 
     // checks column input
     if(isalpha(input[0])){
+
+        // if input is for undo/redo/settings
+        switch(toupper(input[0])){
+            case 'U':
+                undo_operation = true;
+                invalid = pop_stack(&undo_stack);
+                return invalid;
+
+            case 'R':
+                undo_operation = false;
+                invalid = pop_stack(&redo_stack);
+                return invalid;
+
+            case 'S':
+                ingame_settings();
+                return invalid;
+        }
+
         insert_col = input[0];
 
         //converts to int grid index
@@ -559,4 +681,125 @@ int check_insert_input(char* in) {
     }
 
     return invalid;
+}
+
+
+// Undoes or Redoes a move
+int pop_stack(moves_stack* m_stack) {
+
+    bool invalid = false;
+
+    // if stack is empty
+    if(m_stack->top == -1){
+        return invalid = true;
+    }
+
+    insert_row = m_stack->moves[m_stack->top][0];
+    insert_col = m_stack->moves[m_stack->top][1];
+
+    // sets values so pushed to redo stack correctly
+    insert_value = m_stack->moves[m_stack->top][2];
+    player_grid[insert_row][insert_col] = m_stack->moves[m_stack->top][3];
+
+    // push_stack function checks and allocates if required more memory for stack
+    if(undo_operation){
+        push_stack(&redo_stack);
+        // previous value
+        insert_value = m_stack->moves[m_stack->top][3];
+
+        // inserts value prior to undo (for checking empties in play_game function)
+        player_grid[insert_row][insert_col] = m_stack->moves[m_stack->top][2];
+    }else{
+        push_stack(&undo_stack);
+    }
+
+    // avoids adding back to stack once back in play_game function
+    undo_operation = true;
+
+    free(m_stack->moves[m_stack->top]);
+
+    m_stack->top--;
+
+    return invalid;
+}
+
+
+
+// initialises undo and redo stacks
+void init_stacks(int stack_size) {
+    undo_stack.top = -1;
+    undo_stack.allocated = stack_size;
+    redo_stack.top = -1;
+    redo_stack.allocated = stack_size;
+
+    undo_stack.moves = malloc(stack_size * sizeof(int*));
+    if (undo_stack.moves == NULL)
+    {
+        printf("Memory allocation failure\n");
+        exit(1);
+    }
+
+
+    redo_stack.moves = malloc(stack_size * sizeof(int*));
+    if (redo_stack.moves == NULL)
+    {
+        printf("Memory allocation failure\n");
+        exit(1);
+    }
+}
+
+
+// pushes last move details to undo stack
+void push_stack(moves_stack* m_stack) {
+
+    int previous_value = player_grid[insert_row][insert_col];
+
+    int* move = malloc(4*sizeof(int));
+    if(move == NULL){
+        printf("Memory allocation failure\n");
+        exit(1);
+    }
+    move[0] = insert_row;
+    move[1] = insert_col;
+    move[2] = insert_value;
+    move[3] = previous_value;
+
+    m_stack->top++;
+
+    if(m_stack->top >= m_stack->allocated){
+        extend_stack(m_stack, SIZE);
+    }
+
+    m_stack->moves[m_stack->top] = move;
+}
+
+
+// allocates more memory for stack
+void extend_stack(moves_stack* m_stack, int extend_by) {
+    int pre_extend_allocated = m_stack->allocated;
+
+    m_stack->allocated = m_stack->allocated + extend_by;
+
+    m_stack->moves = realloc(m_stack->moves, ((pre_extend_allocated * sizeof(int*)) + (extend_by * sizeof(int*))));
+    if (m_stack->moves == NULL)
+    {
+        printf("Memory allocation failure\n");
+        exit(1);
+    }
+}
+
+
+// frees undo and redo stacks
+void deallocate_stacks() {
+
+    for(int i=0; i<undo_stack.top; i++){
+        free(undo_stack.moves[i]);
+    }
+
+    for(int i=0; i<redo_stack.top; i++){
+        free(redo_stack.moves[i]);
+    }
+
+    free(undo_stack.moves);
+    free(redo_stack.moves);
 }
