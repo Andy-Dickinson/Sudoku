@@ -8,7 +8,7 @@ void generate_grids() {
     set_box_row_col();
 
     // sets seed for random number generator
-    srand(1);
+    set_seed();
 
     // allocates memory for grids
     allocate_grid(&solution_grid);
@@ -49,6 +49,12 @@ void generate_grids() {
 
     // deallocates memory
     clean_up(row_cand, col_cand, box_cand, &empty_cells, populated_list);
+}
+
+
+// function also called when loading game (as used in display_board function)
+void set_seed(){
+    srand(1);
 }
 
 

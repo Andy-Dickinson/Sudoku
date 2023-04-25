@@ -74,5 +74,6 @@ void deallocate_grid(int***);    // frees memory for grid
 void sepearator_row();           // prints a row of --- dependant on board SIZE
 void set_box_row_col();          // calculates number of rows/columns per box and sets variables so not having to calculate multiple times
 void generate_grids(); // generates a solution and player grid
+void set_seed(); // function also called when loading game (as used in display_board function)
 
 #endif // GENERATE_BOARD_H

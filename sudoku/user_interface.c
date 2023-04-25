@@ -9,6 +9,7 @@ char* difficulty = &medium[0];
 int insert_row;
 int insert_col;
 int insert_value;
+int previous_value;
 bool quit_current_game;
 moves_stack undo_stack;
 moves_stack redo_stack;
@@ -350,7 +351,7 @@ int parse_main_input(int select, int select_max) {
         create_new_game();
         break;
     case 2:
-        printf("load game\n");/////////////////////////////////////////////////////////////////////////////////////////////
+        load_game();
         break;
     case 3:
         printf("watch playthrough\n");///////////////////////////////////////////////////////////////////////////////////
@@ -447,7 +448,8 @@ void create_new_game() {
     printf("\nGenerating board...\n");
     generate_grids();
 
-    init_stacks(SIZE*SIZE);
+    init_stack(SIZE*SIZE, &undo_stack);
+    init_stack(SIZE*SIZE, &redo_stack);
 
     play_game();
 
@@ -489,7 +491,7 @@ void play_game() {
 
             // stops undo/redo pushing back to stack
             if(!undo_operation){
-                push_stack(&undo_stack);
+                push_stack(&undo_stack, false);
 
                 // frees memory and clears redo stack when new move played
                 for(int i=0; i<redo_stack.top; i++){
@@ -703,14 +705,14 @@ int pop_stack(moves_stack* m_stack) {
 
     // push_stack function checks and allocates if required more memory for stack
     if(undo_operation){
-        push_stack(&redo_stack);
+        push_stack(&redo_stack, false);
         // previous value
         insert_value = m_stack->moves[m_stack->top][3];
 
         // inserts value prior to undo (for checking empties in play_game function)
         player_grid[insert_row][insert_col] = m_stack->moves[m_stack->top][2];
     }else{
-        push_stack(&undo_stack);
+        push_stack(&undo_stack, false);
     }
 
     // avoids adding back to stack once back in play_game function
@@ -726,22 +728,12 @@ int pop_stack(moves_stack* m_stack) {
 
 
 // initialises undo and redo stacks
-void init_stacks(int stack_size) {
-    undo_stack.top = -1;
-    undo_stack.allocated = stack_size;
-    redo_stack.top = -1;
-    redo_stack.allocated = stack_size;
+void init_stack(int stack_size, moves_stack* stack) {
+    stack->top = -1;
+    stack->allocated = stack_size;
 
-    undo_stack.moves = malloc(stack_size * sizeof(int*));
-    if (undo_stack.moves == NULL)
-    {
-        printf("Memory allocation failure\n");
-        exit(1);
-    }
-
-
-    redo_stack.moves = malloc(stack_size * sizeof(int*));
-    if (redo_stack.moves == NULL)
+    stack->moves = malloc(stack_size * sizeof(int*));
+    if (stack->moves == NULL)
     {
         printf("Memory allocation failure\n");
         exit(1);
@@ -750,15 +742,18 @@ void init_stacks(int stack_size) {
 
 
 // pushes last move details to undo stack
-void push_stack(moves_stack* m_stack) {
-
-    int previous_value = player_grid[insert_row][insert_col];
+void push_stack(moves_stack* m_stack, bool loading) {
 
     int* move = malloc(4*sizeof(int));
     if(move == NULL){
         printf("Memory allocation failure\n");
         exit(1);
     }
+
+    if(!loading){
+        previous_value = player_grid[insert_row][insert_col];
+    }
+
     move[0] = insert_row;
     move[1] = insert_col;
     move[2] = insert_value;
@@ -824,6 +819,39 @@ void save(){
 }
 
 
+void load_game() {
+    bool invalid = false;
+    char choice[3];
+
+    do{
+        system("cls");
+        printf("**********************  SUDOKU  **********************\n");
+        printf("                       LOAD MENU\n\n");
+
+        list_files(false, &invalid, &choice[0]);
+
+    }while(invalid);
+
+    if(choice[0] != '\n'){
+        // sets variables
+        read_from_file(atoi(choice));
+
+        // sets random number seed as used in display_board function
+        set_seed();
+        set_box_row_col();
+        quit_current_game = false;
+        solved = false;
+
+        play_game();
+
+        deallocate_grid(&solution_grid);
+        deallocate_grid(&player_grid);
+        deallocate_grid(&original_player_grid);
+        deallocate_stacks();
+    }
+}
+
+
 void write_to_file(int selection){
     FILE* file_pt;
     char filename[80];
@@ -834,7 +862,6 @@ void write_to_file(int selection){
 
 
     if(selection == 1){
-            printf("here2");
         time_t rawtime;
         struct tm *timedate;
 
@@ -861,12 +888,193 @@ void write_to_file(int selection){
     char path[80] = "./save-files/";
     strcat(path, filename);
 
-
     file_pt = fopen(path, "w");
     fflush(stdin);
     rewind(file_pt);
 
     fprintf(file_pt, "%d\n", SIZE);
+    fprintf(file_pt, "%c\n", *difficulty);
+    fprintf(file_pt, "%d\n", colour_aid_setting);
+    fprintf(file_pt, "%d\n", grid_empties);
+
+    // undo stack
+    fprintf(file_pt, "%d\n", undo_stack.allocated);
+    fprintf(file_pt, "%d\n", undo_stack.top);
+    for(int i=0; i<=undo_stack.top; i++){
+        fprintf(file_pt, "%d ", undo_stack.moves[i][0]); // row index
+        fprintf(file_pt, "%d ", undo_stack.moves[i][1]); // col index
+        fprintf(file_pt, "%d ", undo_stack.moves[i][2]); // insert value
+        fprintf(file_pt, "%d ", undo_stack.moves[i][3]); // previous value
+    }
+    fprintf(file_pt, "\n");
+
+    // redo stack
+    fprintf(file_pt, "%d\n", redo_stack.allocated);
+    fprintf(file_pt, "%d\n", redo_stack.top);
+    for(int i=0; i<=redo_stack.top; i++){
+        fprintf(file_pt, "%d ", redo_stack.moves[i][0]); // row index
+        fprintf(file_pt, "%d ", redo_stack.moves[i][1]); // col index
+        fprintf(file_pt, "%d ", redo_stack.moves[i][2]); // insert value
+        fprintf(file_pt, "%d ", redo_stack.moves[i][3]); // previous value
+    }
+    fprintf(file_pt, "\n");
+
+    // solution grid
+    for(int row=0; row<SIZE; row++){
+        for(int col=0; col<SIZE; col++){
+            fprintf(file_pt, "%d ", solution_grid[row][col]);
+        }
+    }
+    fprintf(file_pt, "\n");
+
+    // player grid
+    for(int row=0; row<SIZE; row++){
+        for(int col=0; col<SIZE; col++){
+            fprintf(file_pt, "%d ", player_grid[row][col]);
+        }
+    }
+    fprintf(file_pt, "\n");
+
+    // original player grid
+    for(int row=0; row<SIZE; row++){
+        for(int col=0; col<SIZE; col++){
+            fprintf(file_pt, "%d ", original_player_grid[row][col]);
+        }
+    }
+
+    // if adding more to file, add new line character
+
+    fclose(file_pt);
+    closedir(directory);
+}
+
+
+void read_from_file(int selection) {
+    FILE* file_pt;
+    char filename[80];
+    DIR* directory;
+    struct dirent* dir;
+    char buff[255];
+    int read_int;
+
+
+    directory = opendir("save-files");
+
+    int file_number = 1;
+
+    while((dir = readdir(directory)) != NULL) {
+        if((strcmp(dir->d_name, ".") != 0) && (strcmp(dir->d_name, "..") != 0)){
+            if(file_number == selection){
+                strcpy(filename, dir->d_name);
+                break;
+            }
+            file_number++;
+        }
+    }
+
+    char path[80] = "./save-files/";
+    strcat(path, filename);
+
+    file_pt = fopen(path, "r");
+    fflush(stdin);
+    rewind(file_pt);
+
+
+    // SIZE
+    fscanf(file_pt, "%d", &SIZE);
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+
+    // difficulty
+    fgets(buff, 2, file_pt);
+    if(strcmp(&buff[0],"E") == 0) {
+        difficulty = &easy[0];
+    } else if(strcmp(&buff[0],"M") == 0) {
+        difficulty = &medium[0];
+    }else {
+        difficulty = &hard[0];
+    }
+
+    // colour_aid_setting
+    fscanf(file_pt, "%d", &colour_aid_setting);
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+
+    // grid_empties
+    fscanf(file_pt, "%d", &grid_empties);
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+
+    // undo_stack
+    // allocated
+    fscanf(file_pt, "%d", &read_int);
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+    init_stack(read_int, &undo_stack);
+    // undo.top
+    fscanf(file_pt, "%d", &read_int);
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+    for(int i=0; i<=read_int; i++){
+        fscanf(file_pt, "%d", &insert_row);
+        fscanf(file_pt, "%d", &insert_col);
+        fscanf(file_pt, "%d", &insert_value);
+        fscanf(file_pt, "%d", &previous_value);
+        push_stack(&undo_stack, true);
+    }
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+
+    // redo_stack
+    // allocated
+    fscanf(file_pt, "%d", &read_int);
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+    init_stack(read_int, &redo_stack);
+    // redo.top
+    fscanf(file_pt, "%d", &read_int);
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+    for(int i=0; i<=read_int; i++){
+        fscanf(file_pt, "%d", &insert_row);
+        fscanf(file_pt, "%d", &insert_col);
+        fscanf(file_pt, "%d", &insert_value);
+        fscanf(file_pt, "%d", &previous_value);
+        push_stack(&redo_stack, true);
+    }
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+
+    // solution_grid
+    allocate_grid(&solution_grid);
+    for(int row=0; row<SIZE; row++){
+        for(int col=0; col<SIZE; col++){
+            fscanf(file_pt, "%d", &read_int);
+            solution_grid[row][col] = read_int;
+        }
+    }
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+
+    // player_grid
+    allocate_grid(&player_grid);
+    for(int row=0; row<SIZE; row++){
+        for(int col=0; col<SIZE; col++){
+            fscanf(file_pt, "%d", &read_int);
+            player_grid[row][col] = read_int;
+        }
+    }
+    // moves file position to next line
+    fgets(buff, 255, file_pt);
+
+    // original_player_grid
+    allocate_grid(&original_player_grid);
+    for(int row=0; row<SIZE; row++){
+        for(int col=0; col<SIZE; col++){
+            fscanf(file_pt, "%d", &read_int);
+            original_player_grid[row][col] = read_int;
+        }
+    }
 
     fclose(file_pt);
     closedir(directory);
@@ -924,6 +1132,7 @@ void list_files(bool saving, bool* invalid, char* selection) {
         closedir(directory);
         fflush(stdin);
         getchar();
+        choice[0] = '\n';
         *invalid = false;
         return;
     }
