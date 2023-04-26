@@ -48,7 +48,7 @@ typedef struct populated
 } populated;
 
 void init_grid(int**);                                                                                      // sets all cells to 0
-void partially_complete(int**, candidates*, candidates*, candidates*);                                      // randomly fills boxes which do not conflict with each other
+void partially_complete(int**, candidates*, candidates*, candidates*);                                      // randomly fills first box
 node *init_cand_num_list();                                                                                 // creates doubly linked list of all possible numbers for a box/row/column
 void clean_up(candidates*, candidates*, candidates*, cell_ref*, populated*);                                // deallocates memory
 candidates *init_candidates(bool);                                                                          // creates structure (doubly linked list) to contain all candidates for either rows/columns/boxes

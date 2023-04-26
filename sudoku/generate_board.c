@@ -24,7 +24,7 @@ void generate_grids() {
     candidates *col_cand = init_candidates(true);
     candidates *box_cand = init_candidates(true);
 
-    // randomly fills boxes which do not conflict with each other
+    // randomly fills first box
     partially_complete(solution_grid, row_cand, col_cand, box_cand);
 
     // creates stack of empty cell grid references;
@@ -54,7 +54,7 @@ void generate_grids() {
 
 // function also called when loading game (as used in display_board function)
 void set_seed(){
-    srand(1);
+    srand(time(0));
 }
 
 
@@ -845,71 +845,53 @@ node *init_cand_num_list()
     return list;
 }
 
-/* randomly fills boxes which do not conflict with each other
-   note rows are populated in turn, but the for-loop iterates for number of box rows
-   columns are calculated by box cols * box counter
-   ie each box is completely filled starting with the top row, before going onto the next row followed by the next box */
+/* randomly fills first box
+   completes box top row, before going onto the next row */
 void partially_complete(int **grid, candidates *row_cand, candidates *col_cand, candidates *box_cand)
 {
-    int row = 0;
-    int col;
-    int box_counter = 0;
     candidates *current_box_cand = box_cand;
     node *cand_list, *temp;
 
-    // randomly fills non conflicting boxes
-    // iterates boxes diagonally down and to the right
-    for (int box = 0; box < SIZE; box += BOX_ROWS + 1)
+    // sets pointer to first box candidates
+    while (current_box_cand->id != 0)
     {
+        current_box_cand = current_box_cand->next;
+    }
 
-        // sets pointer to current box candidates
-        while (current_box_cand->id != box)
+    // iterates rows in box
+    for (int row = 0; row < BOX_ROWS; row++)
+    {
+        // iterates columns in box
+        for (int col = 0; col < BOX_COLS; col++)
         {
-            current_box_cand = current_box_cand->next;
-        }
+            // sets candidate list pointer
+            cand_list = current_box_cand->cand_list;
 
-        // iterates rows in a box
-        for (int i = 0; i < BOX_ROWS; i++)
-        {
-            // sets column index to beginning of next box to the right
-            col = BOX_COLS * box_counter;
+            // generate random number between 0 and number of box candidates remaining-1
+            int cycle_num = rand() % (current_box_cand->remaining);
 
-            // iterates columns in a box
-            for (int j = 0; j < BOX_COLS; j++)
+            // moves pointer to candidate list of remaining numbers to be placed by the random number, essentially selecting a random number from those remaining for box
+            // doesn't move pointer if only 1 remaining
+            for (int k = 0; k < cycle_num; k++)
             {
-                // sets candidate list pointer
-                cand_list = current_box_cand->cand_list;
-
-                // generate random number between 0 and number of box_num_remaining-1
-                int cycle_num = rand() % (current_box_cand->remaining);
-
-                // moves pointer to candidate list of remaining numbers to be placed by the random number, essentially selecting a random number from those remaining for box
-                // doesn't move pointer if only 1 remaining
-                for (int k = 0; k < cycle_num; k++)
-                {
-                    cand_list = cand_list->next;
-                }
-
-                // inserts random number from box_numbers list into grid
-                int insert_num = cand_list->data;
-                grid[row][col] = insert_num;
-
-                // remove candidate number just inserted from box/row/col candidates
-                temp = remove_candidate(&current_box_cand, insert_num, current_box_cand->id);
-                free(temp);
-                temp = NULL;
-                temp = remove_candidate(&row_cand, insert_num, row);
-                free(temp);
-                temp = NULL;
-                temp = remove_candidate(&col_cand, insert_num, col);
-                free(temp);
-                temp = NULL;
-
-                col++;
+                cand_list = cand_list->next;
             }
-            row++;
+
+            // inserts random number from box_numbers list into grid
+            int insert_num = cand_list->data;
+            grid[row][col] = insert_num;
+
+            // remove candidate number just inserted from box/row/col candidates
+            temp = remove_candidate(&current_box_cand, insert_num, current_box_cand->id);
+            free(temp);
+            temp = NULL;
+            temp = remove_candidate(&row_cand, insert_num, row);
+            free(temp);
+            temp = NULL;
+            temp = remove_candidate(&col_cand, insert_num, col);
+            free(temp);
+            temp = NULL;
         }
-        box_counter++;
     }
 }
 
