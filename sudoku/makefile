@@ -1,15 +1,7 @@
-all: clean sudoku user_interface board
+all: gcc run
 
-clean:
-	del *.obj
-	del *.exe
-	del *.asm
-
-sudoku:
-	cl sudoku.c
-
-user_interface:
-	cl user_interface.c
-
-board:
-	cl generate_board.c
+gcc:
+	gcc sudoku.c user_interface.c generate_board.c -o sudoku
+	
+run: 
+	sudoku.exe

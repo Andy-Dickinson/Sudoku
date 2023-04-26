@@ -63,7 +63,7 @@ void insert_candidate(candidates**, int, int);                                  
 int solve(cell_ref*, int**, candidates*, candidates*, candidates*, bool, int);                              // attempts to solve, if no matches, backtracks
 int get_box_num(int, int);                                                                                  // calculate box number (0 indexed)
 void copy_grid(int**, int**);                                                                               // copies one grid to another
-void rem_grid_nums(int**, int, populated*);                                                                 // removes 'remove' amount of numbers from grid (based on difficulty)
+void rem_grid_nums(int**, populated*);                                                                 // removes 'remove' amount of numbers from grid (based on difficulty)
 populated *init_populated_cell_ref();                                                                       // generates populated cells list;
 void deallocate_candidates(candidates*, candidates*, candidates*);                                          // frees memory for candidates
 

@@ -14,6 +14,7 @@ bool quit_current_game;
 moves_stack undo_stack;
 moves_stack redo_stack;
 bool undo_operation;
+bool game_saved;
 
 
 // prints main menu
@@ -35,8 +36,8 @@ void menu() {
         printf("\n\n");
         printf("1. Start new game - %dx%d %s\n", SIZE, SIZE, difficulty);
         printf("2. Continue saved game\n");
-        printf("3. Watch playthrough\n");
-        printf("4. Settings\n");
+        printf("3. Settings\n");
+        //printf("4. Watch playthrough\n");
         // if options are added/removed, change max flag passed to parse_main_input
         printf("\nPress enter with no input to quit\n\n");
         if(invalid){
@@ -48,7 +49,7 @@ void menu() {
         invalid = get_input(&input[0]);
 
         if(invalid == 0) {
-            invalid = parse_main_input(atoi(input), 4);
+            invalid = parse_main_input(atoi(input), 3);
         }
 
     } while (input[0] != '\n');
@@ -82,10 +83,10 @@ void settings() {
             printf("**********************  SUDOKU  **********************\n");
             printf("                       SETTINGS\n");
             printf("\n\n");
-            printf("1. Timer - %s\n", timer_text);
-            printf("2. Valid input colour aid - %s\n", colour_aid_text);
-            printf("3. Change board size - %dx%d\n", SIZE, SIZE);
-            printf("4. Change difficulty - %s\n", difficulty);
+            printf("1. Valid input colour aid - %s\n", colour_aid_text);
+            printf("2. Change board size - %dx%d\n", SIZE, SIZE);
+            printf("3. Change difficulty - %s\n", difficulty);
+            //printf("4. Timer - %s\n", timer_text);
             // if options are added/removed, change max flag passed to parse_settings_input
             printf("\nPress enter to return to main menu\n\n");
             if(invalid){
@@ -97,7 +98,7 @@ void settings() {
             invalid = get_input(&input[0]);
 
             if(invalid == 0) {
-                invalid = parse_settings_input(atoi(input), 4, false);
+                invalid = parse_settings_input(atoi(input), 3, false);
             }
 
         } while (input[0] != '\n');
@@ -131,10 +132,10 @@ bool invalid = false;
             printf("**********************  SUDOKU  **********************\n");
             printf("                       SETTINGS\n");
             printf("\n\n");
-            printf("1. Timer - %s\n", timer_text);
-            printf("2. Valid input colour aid - %s\n", colour_aid_text);
-            printf("3. Save game\n");
-            printf("4. Quit to main menu\n");
+            printf("1. Valid input colour aid - %s\n", colour_aid_text);
+            printf("2. Save game\n");
+            printf("3. Quit to main menu\n");
+            //printf("4. Timer - %s\n", timer_text);
             // if options are added/removed, change max flag passed to parse_settings_input
             printf("\nPress enter to return to gameplay\n\n");
             if(invalid){
@@ -146,10 +147,10 @@ bool invalid = false;
             invalid = get_input(&input[0]);
 
             if(invalid == 0) {
-                invalid = parse_settings_input(atoi(input), 4, true);
+                invalid = parse_settings_input(atoi(input), 3, true);
             }
 
-            if(atoi(input) == 4){
+            if(atoi(input) == 3){
                 input[0] = '\n';
             }
 
@@ -304,33 +305,33 @@ int parse_settings_input(int select, int select_max, bool ingame) {
 
     switch(select) {
     case 1:
-        if(timer_setting){
-            timer_setting = false;
-        }else {
-            timer_setting = true;
-        }
-        break;
-    case 2:
         if(colour_aid_setting) {
             colour_aid_setting = false;
         }else {
             colour_aid_setting = true;
         }
         break;
-    case 3:
+    case 2:
         if(ingame){
             save();
         }else{
             change_board_size();
         }
         break;
-    case 4:
+    case 3:
         if(ingame){
             quit_current_game = true;
         }else{
             change_difficulty();
         }
         break;
+    case 4:
+    if(timer_setting){
+        timer_setting = false;
+    }else {
+        timer_setting = true;
+    }
+    break;
     default:
         invalid = true;
         break;
@@ -354,10 +355,10 @@ int parse_main_input(int select, int select_max) {
         load_game();
         break;
     case 3:
-        printf("watch playthrough\n");///////////////////////////////////////////////////////////////////////////////////
+        settings();
         break;
     case 4:
-        settings();
+        printf("watch playthrough\n");///////////////////////////////////////////////////////////////////////////////////
         break;
     default:
         invalid = true;
@@ -451,6 +452,8 @@ void create_new_game() {
     init_stack(SIZE*SIZE, &undo_stack);
     init_stack(SIZE*SIZE, &redo_stack);
 
+    game_saved = false;
+
     play_game();
 
     deallocate_grid(&solution_grid);
@@ -473,9 +476,24 @@ void play_game() {
 
         get_grid_ref();
 
-        // exits loop if quit selected from in game settings menu
+        /* exits loop if quit selected from in game settings menu
+        first checks if game has been saved, checks with user if not */
         if(quit_current_game){
-            break;
+            char input[2];
+            if(!game_saved){
+                printf("\nAre you sure you want to quit without saving?\n");
+                printf("Enter 'y' to quit or press enter to return:\n");
+                fflush(stdin);
+                fgets(input, sizeof(input), stdin);
+            } else {
+                break;
+            }
+
+            if(toupper(input[0]) == 'Y'){
+                break;
+            } else {
+               quit_current_game = false;
+            }
         }
 
 
@@ -500,6 +518,7 @@ void play_game() {
                 redo_stack.top = -1;
             }
             player_grid[insert_row][insert_col] = insert_value;
+            game_saved = false;
 
             if(grid_empties == 0){
                 check_grid_solved();
@@ -815,6 +834,7 @@ void save(){
 
     if(choice[0] != '\n'){
         write_to_file(atoi(choice));
+        game_saved = true;
     }
 }
 
@@ -841,6 +861,8 @@ void load_game() {
         set_box_row_col();
         quit_current_game = false;
         solved = false;
+
+        game_saved = true;
 
         play_game();
 

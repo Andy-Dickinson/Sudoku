@@ -42,7 +42,7 @@ void generate_grids() {
     populated *populated_list = init_populated_cell_ref();
 
     // removes number passed amount of numbers from grid
-    rem_grid_nums(player_grid, num_to_remove, populated_list);
+    rem_grid_nums(player_grid, populated_list);
 
     // makes a copy of the original grid to compare player_grid when printing colours
     copy_grid(player_grid, original_player_grid);
@@ -142,7 +142,7 @@ void deallocate_candidates(candidates *row_cand, candidates *col_cand, candidate
 }
 
 // removes numbers from player_grid
-void rem_grid_nums(int **grid, int num_to_remove, populated *remain_ref)
+void rem_grid_nums(int **grid, populated *remain_ref)
 {
     int removed = 0;
     int all_clue_nums_remain = true;
@@ -852,7 +852,7 @@ node *init_cand_num_list()
 void partially_complete(int **grid, candidates *row_cand, candidates *col_cand, candidates *box_cand)
 {
     int row = 0;
-    int col = 0;
+    int col;
     int box_counter = 0;
     candidates *current_box_cand = box_cand;
     node *cand_list, *temp;
@@ -885,7 +885,7 @@ void partially_complete(int **grid, candidates *row_cand, candidates *col_cand, 
 
                 // moves pointer to candidate list of remaining numbers to be placed by the random number, essentially selecting a random number from those remaining for box
                 // doesn't move pointer if only 1 remaining
-                for (int i = 0; i < cycle_num; i++)
+                for (int k = 0; k < cycle_num; k++)
                 {
                     cand_list = cand_list->next;
                 }

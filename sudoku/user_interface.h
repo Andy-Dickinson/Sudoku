@@ -23,6 +23,7 @@ extern bool quit_current_game;
 extern moves_stack undo_stack;
 extern moves_stack redo_stack;
 extern bool undo_operation;
+extern bool game_saved;
 
 void menu(); // prints main menu loops menu until enter is pressed with no input will return to main menu after a game has been finished
 void settings(); // prints settings menu
