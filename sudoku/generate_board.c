@@ -1,6 +1,30 @@
 #include "sudoku.h"
 #include "generate_board.h"
 
+// delete once done    AND CHANGE SEED IF NOT FIXED ------------------------------------------------------------------------
+
+/*
+int SIZE= 4;
+
+bool colour_aid_setting=true;
+clock_t timer;
+int **solution_grid;
+int **player_grid;
+int **original_player_grid;
+int BOX_ROWS; // rows per box - 9x9 board will be 3, 6x6 will be 2
+int BOX_COLS; // cols per box - 9x9 board will be 3, 6x6 will be 3
+int num_to_remove= 6;
+
+int grid_empties;
+
+int main(void){
+    generate_grids();
+    display_board(solution_grid);
+    return(0);
+}
+*/
+// ---------------------------------------------------------------------------------------------
+
 
 // creates a solution and player grid
 void generate_grids() {
@@ -54,7 +78,7 @@ void generate_grids() {
 
 // function also called when loading game (as used in display_board function)
 void set_seed(){
-    srand(1);
+    srand(500);
 }
 
 
@@ -856,6 +880,20 @@ void partially_complete(int **grid, candidates *row_cand, candidates *col_cand, 
     int box_counter = 0;
     candidates *current_box_cand = box_cand;
     node *cand_list, *temp;
+    int* row_values;
+    int* col_values;
+
+    row_values = malloc((BOX_ROWS-1)*sizeof(int*));
+    if(row_values == NULL){
+        printf("Memory allocation failure\n");
+        exit(1);
+    }
+
+    col_values = malloc((BOX_COLS-1)*sizeof(int*));
+    if(col_values == NULL){
+        printf("Memory allocation failure\n");
+        exit(1);
+    }
 
     // randomly fills non conflicting boxes
     // iterates boxes diagonally down and to the right
@@ -877,21 +915,62 @@ void partially_complete(int **grid, candidates *row_cand, candidates *col_cand, 
             // iterates columns in a box
             for (int j = 0; j < BOX_COLS; j++)
             {
-                // sets candidate list pointer
-                cand_list = current_box_cand->cand_list;
+                bool invalid;
+                int disallowed = -1;
+                int insert_num;
+                // loops while last value picked for row/col would make cells impossible to fill
+                do {
+                    invalid = false;
 
-                // generate random number between 0 and number of box_num_remaining-1
-                int cycle_num = rand() % (current_box_cand->remaining);
+                    // sets candidate list pointer
+                    cand_list = current_box_cand->cand_list;
 
-                // moves pointer to candidate list of remaining numbers to be placed by the random number, essentially selecting a random number from those remaining for box
-                // doesn't move pointer if only 1 remaining
-                for (int k = 0; k < cycle_num; k++)
-                {
-                    cand_list = cand_list->next;
-                }
+                    // generate random number between 0 and number of box_num_remaining-1
+                    int cycle_num = rand() % (current_box_cand->remaining);
+
+                    // moves pointer to candidate list of remaining numbers to be placed by the random number, essentially selecting a random number from those remaining for box
+                    // doesn't move pointer if only 1 remaining
+                    for (int k = 0; k < cycle_num; k++) {
+                        cand_list = cand_list->next;
+                    }
+
+                    int counter;
+                    if((j == BOX_COLS-1) && (box != 0)){
+                        // when last column in box
+
+                        // gets current values inserted for box row
+                        int first_col_box = col-(BOX_COLS-1);
+                        counter = 0;
+                        for(int y=first_col_box; y<first_col_box+BOX_COLS-1; y++){
+                            row_values[counter] = grid[row][y];
+                            counter++;
+                        }
+
+                        disallowed = disallowed_value(row_values, true);
+
+                    }else if((i == BOX_ROWS-1) && (box != 0)) {
+                        // when last row in box
+
+                        // gets current values inserted for box col
+                        int first_row_box = row-(BOX_ROWS-1);
+                        counter = 0;
+                        for(int x=first_row_box; x<first_row_box+BOX_ROWS-1; x++){
+                            col_values[counter] = grid[x][col];
+                            counter++;
+                        }
+
+                        disallowed = disallowed_value(col_values, false);
+                    }
+
+                    insert_num = cand_list->data;
+
+                    if(disallowed == insert_num){
+                        invalid = true;
+                    }
+                } while (invalid);
+
 
                 // inserts random number from box_numbers list into grid
-                int insert_num = cand_list->data;
                 grid[row][col] = insert_num;
 
                 // remove candidate number just inserted from box/row/col candidates
@@ -911,7 +990,10 @@ void partially_complete(int **grid, candidates *row_cand, candidates *col_cand, 
         }
         box_counter++;
     }
+    free(row_values);
+    free(col_values);
 }
+
 
 // inserts new node to candidate list
 // used when nodes inserting do not point anywhere when numbers are removed from grid
