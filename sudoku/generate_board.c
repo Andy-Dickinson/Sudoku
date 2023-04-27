@@ -222,7 +222,7 @@ void rem_grid_nums(int **grid, populated *remain_ref)
         // if more than 1 solution exists
         if (solve(&empties, grid, row_cand, col_cand, box_cand, false, grid_value) == 1)
         {
-
+            // restore to grid and do not check this cell again
             grid[remove_from->row][remove_from->col] = grid_value;
             empties.top = emp_top-1;
             node* temp_row = remove_candidate(&row_cand, grid_value, remove_from->row);
